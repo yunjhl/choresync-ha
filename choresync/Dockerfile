@@ -2,6 +2,7 @@ FROM python:3.12-slim AS builder
 WORKDIR /build
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc build-essential libffi-dev libssl-dev \
+    libjpeg-dev zlib1g-dev libpng-dev \
     && rm -rf /var/lib/apt/lists/*
 COPY requirements.txt .
 RUN pip install --no-cache-dir --prefer-binary --timeout 300 --prefix=/install -r requirements.txt
