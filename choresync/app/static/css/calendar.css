@@ -1,0 +1,157 @@
+/* ChoreSync Phase 7 — 달력 스타일 */
+
+/* ── 달력 그리드 ── */
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+.calendar-header-cell {
+  text-align: center;
+  font-size: 0.78em;
+  font-weight: 600;
+  color: var(--pico-muted-color);
+  padding: 6px 0;
+}
+.calendar-day {
+  min-height: 80px;
+  border: 1px solid var(--pico-muted-border-color);
+  border-radius: 6px;
+  padding: 4px;
+  cursor: pointer;
+  transition: background 0.15s;
+  overflow: hidden;
+}
+.calendar-day:hover { background: var(--pico-card-background-color); }
+.calendar-day.today { border-color: var(--pico-primary); background: color-mix(in srgb, var(--pico-primary) 8%, transparent); }
+.calendar-day.other-month { opacity: 0.4; }
+.day-number {
+  font-size: 0.82em;
+  font-weight: 600;
+  display: block;
+  margin-bottom: 2px;
+}
+.today .day-number { color: var(--pico-primary); }
+
+/* ── 이벤트 pill ── */
+.event-pill {
+  font-size: 0.7em;
+  padding: 1px 5px;
+  border-radius: 10px;
+  margin: 1px 0;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  background: var(--event-color, #6b7280);
+}
+.event-pill.completed { opacity: 0.5; text-decoration: line-through; }
+.more-count { font-size: 0.68em; color: var(--pico-muted-color); }
+
+/* ── 달력 네비게이션 ── */
+.calendar-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1em;
+}
+.calendar-nav h2 { margin: 0; font-size: 1.1em; }
+.calendar-nav button { padding: 0.3em 0.8em; }
+
+/* ── 사이드 패널 ── */
+#day-detail-panel {
+  border-left: 3px solid var(--pico-primary);
+  padding-left: 1em;
+  min-height: 200px;
+}
+
+/* ── 배지 그리드 ── */
+.badge-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 1em;
+}
+.badge-card {
+  text-align: center;
+  padding: 1em 0.5em;
+  border-radius: 10px;
+  border: 2px solid var(--pico-muted-border-color);
+  transition: border-color 0.2s, transform 0.15s;
+}
+.badge-card.earned { border-color: var(--pico-primary); }
+.badge-card.not-earned { opacity: 0.55; filter: grayscale(0.6); }
+.badge-card:hover { transform: translateY(-2px); }
+.badge-icon { font-size: 2.2em; display: block; margin-bottom: 0.3em; }
+.badge-name { font-size: 0.8em; font-weight: 600; }
+.badge-tier { font-size: 0.7em; color: var(--pico-muted-color); text-transform: capitalize; }
+.tier-bronze .badge-icon { filter: sepia(0.4); }
+.tier-silver .badge-icon { filter: brightness(1.2) saturate(0.3); }
+.tier-gold   .badge-icon { filter: sepia(0.7) saturate(2); }
+
+/* 진행도 바 */
+.progress-bar-wrap { background: var(--pico-muted-border-color); border-radius: 4px; height: 5px; margin-top: 4px; }
+.progress-bar-fill { height: 5px; border-radius: 4px; background: var(--pico-primary); transition: width 0.4s; }
+
+/* ── 상점 카드 ── */
+.shop-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 1em;
+}
+.shop-item-card {
+  border: 1px solid var(--pico-muted-border-color);
+  border-radius: 10px;
+  padding: 1em;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5em;
+}
+.shop-item-icon { font-size: 2em; text-align: center; }
+.shop-item-cost {
+  font-weight: 700;
+  color: var(--pico-primary);
+  font-size: 1.1em;
+}
+.shop-item-stock { font-size: 0.78em; color: var(--pico-muted-color); }
+
+/* ── 히트맵 ── */
+.heatmap-grid {
+  display: grid;
+  grid-template-columns: repeat(53, 1fr);
+  gap: 2px;
+  overflow-x: auto;
+}
+.heatmap-cell {
+  width: 13px;
+  height: 13px;
+  border-radius: 2px;
+  background: var(--pico-muted-border-color);
+}
+.heatmap-cell[data-level="1"] { background: #9be9a8; }
+.heatmap-cell[data-level="2"] { background: #40c463; }
+.heatmap-cell[data-level="3"] { background: #30a14e; }
+.heatmap-cell[data-level="4"] { background: #216e39; }
+[data-theme="dark"] .heatmap-cell[data-level="1"] { background: #0e4429; }
+[data-theme="dark"] .heatmap-cell[data-level="2"] { background: #006d32; }
+[data-theme="dark"] .heatmap-cell[data-level="3"] { background: #26a641; }
+[data-theme="dark"] .heatmap-cell[data-level="4"] { background: #39d353; }
+
+/* ── 스트릭 카드 ── */
+.streak-card {
+  text-align: center;
+  padding: 1.5em 1em;
+}
+.streak-number {
+  font-size: 3em;
+  font-weight: 700;
+  color: var(--pico-primary);
+  line-height: 1;
+}
+.streak-label { font-size: 0.85em; color: var(--pico-muted-color); }
+.streak-fire { font-size: 1.5em; }
+
+.calendar-day.selected {
+  border: 2px solid var(--pico-primary);
+  background: var(--pico-primary-background);
+  border-radius: 6px;
+}

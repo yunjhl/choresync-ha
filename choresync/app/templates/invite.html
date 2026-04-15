@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}초대 수락 — ChoreSync{% endblock %}
+{% block content %}
+<div style="max-width:400px;margin:4em auto;text-align:center">
+  <h2>&#128106; 가족 초대</h2>
+  <div id="invite-info">
+    <article aria-busy="true">초대 정보를 불러오는 중...</article>
+  </div>
+  <div id="invite-form" style="display:none;margin-top:1.5em">
+    <select id="invite-role" style="margin-bottom:1em">
+      <option value="아빠">아빠</option>
+      <option value="엄마">엄마</option>
+      <option value="아들">아들</option>
+      <option value="딸">딸</option>
+      <option value="기타">기타</option>
+    </select>
+    <button id="accept-btn" onclick="acceptInvite()" style="width:100%">합류하기</button>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+var inviteCode = location.pathname.split("/").pop();
+
+async function loadInviteInfo() {
+  try {
+    var r = await fetch("/api/families/invite/" + inviteCode);
+    if (!r.ok) throw new Error("유효하지 않은 초대 코드");
+    var data = await r.json();
+    document.getElementById("invite-info").innerHTML =
+      '<div style="padding:1.5em;border:1px solid var(--pico-muted-border-color);border-radius:12px">' +
+      '<h3>' + data.family_name + '</h3>' +
+      '<p>구성원 ' + data.member_count + '명</p>' +
+      '</div>';
+    document.getElementById("invite-form").style.display = "block";
+  } catch(e) {
+    document.getElementById("invite-info").innerHTML = '<p style="color:red">' + e.message + '</p>';
+  }
+}
+
+async function acceptInvite() {
+  if (!getToken()) { location.href = "/login?next=/invite/" + inviteCode; return; }
+  var role = document.getElementById("invite-role").value;
+  try {
+    var r = await fetch("/api/families/join/" + inviteCode, {
+      method: "POST",
+      headers: {"Authorization": "Bearer " + getToken(), "Content-Type": "application/json"},
+      body: JSON.stringify({family_role: role})
+    });
+    if (!r.ok) { var e = await r.json(); throw new Error(e.detail || "오류"); }
+    flash("가족에 합류했습니다!");
+    setTimeout(function() { location.href = "/"; }, 1500);
+  } catch(e) { flash(e.message, "error"); }
+}
+
+loadInviteInfo();
+</script>
+{% endblock %}

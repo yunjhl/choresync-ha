@@ -1,0 +1,183 @@
+{% extends "base.html" %}
+{% block title %}{{ t('members.title') }} — ChoreSync{% endblock %}
+
+{% block head %}
+<style>
+  .member-card { border:1px solid var(--pico-muted-border-color); border-radius:8px; padding:0.9em 1em; margin-bottom:0.7em; }
+  .member-header { display:flex; align-items:center; gap:0.7em; margin-bottom:0.4em; }
+  .member-icon { font-size:1.6em; line-height:1; }
+  .member-info { flex:1; }
+  .member-name { font-weight:600; font-size:1em; }
+  .member-meta { font-size:0.82em; color:var(--pico-muted-color); }
+  .member-age-row { display:flex; align-items:center; gap:0.5em; margin-top:0.5em; }
+  .member-age-badge { padding:2px 8px; border-radius:10px; font-size:0.78em; font-weight:600; background:#f3e5f5; color:#6a1b9a; }
+  .age-edit { display:flex; align-items:center; gap:0.4em; }
+  .age-input { width:70px; padding:0.25em 0.5em; font-size:0.85em; margin:0; }
+  .btn-save-age { padding:0.25em 0.7em; font-size:0.8em; }
+</style>
+{% endblock %}
+
+{% block content %}
+<h1>👨‍👩‍👧‍👦 {{ t('members.title') }}</h1>
+
+<div id="family-select">
+  <label for="family-picker">{{ t('members.select_family') }}</label>
+  <select id="family-picker" onchange="loadMembers()"></select>
+</div>
+
+<article>
+  <header><h3>{{ t('members.members_section') }}</h3></header>
+  <div id="member-list">{{ t('members.select_family') }}</div>
+</article>
+
+<article>
+  <header><h3>{{ t('members.invite_section') }}</h3></header>
+  <div id="invitation-list"></div>
+  <form onsubmit="createInvite(event)" style="margin-top:1em">
+    <div style="display:flex;gap:0.5em;flex-wrap:wrap;align-items:center">
+      <input type="email" id="invite-email" placeholder="초대할 이메일 (선택)" style="flex:1;min-width:180px" autocomplete="off">
+      <select id="invite-days" style="max-width:130px">
+        <option value="1">1일</option>
+        <option value="3">3일</option>
+        <option value="7" selected>7일</option>
+        <option value="14">14일</option>
+        <option value="30">30일</option>
+      </select>
+      <button type="submit">{{ t('members.create_invite') }}</button>
+    </div>
+    <small style="color:var(--pico-muted-color)">이메일 입력 시 해당 계정으로 가입하면 자동 합류됩니다</small>
+  </form>
+</article>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  var currentFamilyId = null;
+  var currentMembers = [];
+
+  function ageIcon(age) {
+    if (age === null || age === undefined) return '🧑';
+    if (age <= 5) return '👶';
+    if (age <= 12) return '🧒';
+    if (age <= 18) return '🧑‍🎓';
+    return '🧑';
+  }
+
+  function ageGroupLabel(age) {
+    if (age === null || age === undefined) return '성인';
+    if (age <= 5) return '영유아 (' + age + '세)';
+    if (age <= 12) return '초등 (' + age + '세)';
+    if (age <= 18) return '중고등 (' + age + '세)';
+    return '성인 (' + age + '세)';
+  }
+
+  async function loadFamilyPicker() {
+    var token = getToken();
+    var res = await fetch('/api/families', {headers:{Authorization:'Bearer ' + token}});
+    if (!res.ok) return;
+    var families = await res.json();
+    var picker = document.getElementById('family-picker');
+    picker.innerHTML = families.map(function(f){ return '<option value="' + f.id + '">' + f.name + '</option>'; }).join('');
+    if (families.length > 0) { currentFamilyId = families[0].id; loadMembers(); loadInvitations(); }
+  }
+
+  async function loadMembers() {
+    currentFamilyId = document.getElementById('family-picker').value;
+    if (!currentFamilyId) return;
+    var token = getToken();
+    var res = await fetch('/api/families/' + currentFamilyId + '/members', {headers:{Authorization:'Bearer ' + token}});
+    if (!res.ok) return;
+    var members = await res.json();
+    currentMembers = members;
+    var container = document.getElementById('member-list');
+    if (!members.length) { container.innerHTML = '<p>구성원이 없습니다</p>'; return; }
+    container.innerHTML = members.map(function(m) {
+      var icon = ageIcon(m.age);
+      var ageLabel = ageGroupLabel(m.age);
+      return '<div class="member-card" id="member-card-' + m.id + '">' +
+        '<div class="member-header">' +
+          '<span class="member-icon">' + icon + '</span>' +
+          '<div class="member-info">' +
+            '<div class="member-name">' + escHtml(m.name) + '</div>' +
+            '<div class="member-meta">' + escHtml(m.role) + ' · ' + escHtml(m.family_role) + '</div>' +
+          '</div>' +
+          '<span class="member-age-badge">' + ageLabel + '</span>' +
+        '</div>' +
+        '<div class="member-age-row">' +
+          '<span style="font-size:0.85em;color:var(--pico-muted-color)">나이:</span>' +
+          '<div class="age-edit">' +
+            '<input class="age-input" type="number" id="age-input-' + m.id + '" value="' + (m.age !== null && m.age !== undefined ? m.age : '') + '" min="0" max="120" placeholder="나이">' +
+            '<button class="btn-save-age outline" onclick="saveAge(' + m.id + ')">저장</button>' +
+          '</div>' +
+        '</div>' +
+      '</div>';
+    }).join('');
+    loadInvitations();
+  }
+
+  async function saveAge(memberId) {
+    var input = document.getElementById('age-input-' + memberId);
+    var age = input.value.trim();
+    var body = { age: age === '' ? null : parseInt(age) };
+    var token = getToken();
+    var res = await fetch('/api/members/' + memberId, {
+      method: 'PATCH',
+      headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    if (res.ok) {
+      flash('나이가 저장되었습니다!');
+      loadMembers();
+    } else {
+      var d = await res.json().catch(function(){return {};});
+      flash(d.detail || '저장 실패', 'error');
+    }
+  }
+
+  async function loadInvitations() {
+    if (!currentFamilyId) return;
+    var token = getToken();
+    var res = await fetch('/api/families/' + currentFamilyId + '/invitations', {headers:{Authorization:'Bearer ' + token}});
+    if (!res || res.status === 403) { document.getElementById('invitation-list').innerHTML = ''; return; }
+    var invites = await res.json();
+    document.getElementById('invitation-list').innerHTML = invites.length === 0
+      ? '<p>활성 초대가 없습니다</p>'
+      : invites.map(function(i) {
+          return '<div style="display:flex;justify-content:space-between;align-items:center;padding:0.5em 0;border-bottom:1px solid #eee">' +
+            '<code>' + i.code + '</code> <span>' + i.status + '</span> <small>만료: ' + new Date(i.expires_at).toLocaleDateString('ko') + '</small>' +
+            ' <button class="outline secondary" style="padding:0.25em 0.5em" onclick="cancelInvite(' + i.id + ')">취소</button>' +
+            '</div>';
+        }).join('');
+  }
+
+  async function createInvite(e) {
+    e.preventDefault();
+    var days = parseInt(document.getElementById('invite-days').value);
+    var email = document.getElementById('invite-email') ? document.getElementById('invite-email').value.trim() : '';
+    var token = getToken();
+    var res = await fetch('/api/families/' + currentFamilyId + '/invitations', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ expires_days: days, invited_email: email || null })
+    });
+    if (res && res.ok) { flash('초대 코드가 생성되었습니다!'); loadInvitations(); }
+    else { var d = await res.json(); flash(d.detail || '오류', 'error'); }
+  }
+
+  async function cancelInvite(id) {
+    var token = getToken();
+    await fetch('/api/families/' + currentFamilyId + '/invitations/' + id, {
+      method: 'DELETE',
+      headers: { Authorization: 'Bearer ' + token }
+    });
+    loadInvitations();
+  }
+
+  function escHtml(s) {
+    if (!s) return '';
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  loadFamilyPicker();
+</script>
+{% endblock %}

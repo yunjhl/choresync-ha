@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+{% block title %}{{ t('badges.title') }} — ChoreSync{% endblock %}
+{% block head %}
+<link rel="stylesheet" href="/static/css/calendar.css">
+{% endblock %}
+{% block content %}
+<div style="display:flex;align-items:center;gap:1em;margin-bottom:1.5em">
+  <h2 style="margin:0">🏆 {{ t('badges.title') }}</h2>
+  <div id="streak-display" style="background:var(--pico-card-background-color);border:1px solid var(--pico-muted-border-color);border-radius:20px;padding:0.3em 1em;font-size:0.9em">
+    🔥 <span id="streak-num">-</span>{{ t('badges.streak') }}
+  </div>
+</div>
+
+<!-- 탭 -->
+<div style="display:flex;gap:0.5em;margin-bottom:1.5em">
+  <button id="tab-earned" onclick="showTab('earned')" class="outline">{{ t('badges.earned_tab') }}</button>
+  <button id="tab-progress" onclick="showTab('progress')">{{ t('badges.progress_tab') }}</button>
+</div>
+
+<!-- 획득 배지 -->
+<div id="section-earned">
+  <div class="badge-grid" id="earned-grid">
+    <p style="color:var(--pico-muted-color)">로딩 중...</p>
+  </div>
+</div>
+
+<!-- 진행 중 배지 -->
+<div id="section-progress" style="display:none">
+  <div id="progress-list">
+    <p style="color:var(--pico-muted-color)">로딩 중...</p>
+  </div>
+</div>
+
+<script>
+const TIER_EMOJI = {bronze:"🥉",silver:"🥈",gold:"🥇",platinum:"💎",special:"🌟"};
+let gUserId = null, gFamilyId = null;
+
+function getToken() { return localStorage.getItem("token"); }
+
+function showTab(tab) {
+  document.getElementById("section-earned").style.display = tab==="earned"?"":"none";
+  document.getElementById("section-progress").style.display = tab==="progress"?"":"none";
+  document.getElementById("tab-earned").className = tab==="earned"?"outline":"outline secondary";
+  document.getElementById("tab-progress").className = tab==="progress"?"outline":"outline secondary";
+}
+
+async function loadBadges() {
+  const token = getToken();
+  if (!token) { location.href="/login"; return; }
+
+  // 사용자 정보
+  const meRes = await fetch("/api/families", {headers:{"Authorization":"Bearer "+token}});
+  const families = await meRes.json();
+  if (!families.length) { document.getElementById("earned-grid").innerHTML="<p>가족을 먼저 만들어 주세요</p>"; return; }
+  gFamilyId = families[0].id;
+
+  // 현재 유저 ID는 /api/auth/me 가 없으니 families 멤버에서 추출
+  const memRes = await fetch(`/api/families/${gFamilyId}/members`, {headers:{"Authorization":"Bearer "+token}});
+  const members = await memRes.json();
+  // JWT 디코딩으로 user_id 파악 (base64 middle part)
+  try {
+    const payload = JSON.parse(atob(token.split(".")[1]));
+    gUserId = payload.sub;
+  } catch(e) {}
+
+  if (!gUserId && members.length) gUserId = members[0].user_id;
+
+  // 스트릭
+  const stRes = await fetch(`/api/badges/streak/${gUserId}?family_id=${gFamilyId}`, {headers:{"Authorization":"Bearer "+token}});
+  if (stRes.ok) {
+    const st = await stRes.json();
+    document.getElementById("streak-num").textContent = st.current_streak;
+  }
+
+  // 획득 배지
+  const earnedRes = await fetch(`/api/badges/earned/${gUserId}?family_id=${gFamilyId}`, {headers:{"Authorization":"Bearer "+token}});
+  const earned = await earnedRes.json();
+  const earnedIds = new Set(earned.map(e=>e.badge_id));
+
+  const grid = document.getElementById("earned-grid");
+  if (!earned.length) {
+    grid.innerHTML = "<p style=\"color:var(--pico-muted-color)\">아직 획득한 배지가 없습니다. 할일을 완료하여 첫 배지를 획득해 보세요!</p>";
+  } else {
+    grid.innerHTML = earned.map(b => `
+      <div class="badge-card earned tier-${b.tier}">
+        <span class="badge-icon">${b.icon||"🏆"}</span>
+        <div class="badge-name">${b.name}</div>
+        <div class="badge-tier">${TIER_EMOJI[b.tier]||""} ${b.tier}</div>
+        <div style="font-size:0.7em;color:var(--pico-muted-color)">${b.earned_at.slice(0,10)}</div>
+      </div>`).join("");
+  }
+
+  // 진행 중 배지
+  const progRes = await fetch(`/api/badges/progress/${gUserId}?family_id=${gFamilyId}`, {headers:{"Authorization":"Bearer "+token}});
+  const progress = await progRes.json();
+  const inProgress = progress.filter(p => !p.earned);
+  const progList = document.getElementById("progress-list");
+  if (!inProgress.length) {
+    progList.innerHTML = "<p style=\"color:var(--pico-muted-color)\">🎉 모든 배지를 획득했습니다!</p>";
+  } else {
+    progList.innerHTML = inProgress.map(p => `
+      <div style="margin-bottom:1.2em">
+        <div style="display:flex;align-items:center;gap:0.7em;margin-bottom:0.3em">
+          <span style="font-size:1.4em">${p.icon||"🏆"}</span>
+          <div>
+            <strong style="font-size:0.9em">${p.name}</strong>
+            <span style="font-size:0.75em;color:var(--pico-muted-color);margin-left:0.5em">${p.tier}</span>
+          </div>
+          <span style="margin-left:auto;font-size:0.85em;font-weight:600">${p.current}/${p.required}</span>
+        </div>
+        <div class="progress-bar-wrap">
+          <div class="progress-bar-fill" style="width:${p.pct}%"></div>
+        </div>
+      </div>`).join("");
+  }
+}
+loadBadges();
+</script>
+{% endblock %}

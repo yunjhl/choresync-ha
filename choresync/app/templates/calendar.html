@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+{% block title %}{{ t('calendar.title') }} — ChoreSync{% endblock %}
+{% block head %}
+<script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js'></script>
+<style>
+  #calendar-root { display: grid; grid-template-columns: 1fr 300px; gap: 1.5em; align-items: start; }
+  @media (max-width: 768px) { #calendar-root { grid-template-columns: 1fr; } #day-detail-panel { display: none; } }
+  .fc { background: var(--pico-card-background-color, #fff); border-radius: var(--pico-border-radius, 0.5rem); padding: 0.5em; }
+  .fc .fc-button { background: var(--pico-primary, #1095c1); border-color: var(--pico-primary, #1095c1); color: #fff; border-radius: 4px; padding: 0.3em 0.7em; }
+  .fc .fc-button-active, .fc .fc-button:hover { background: var(--pico-primary-hover, #0d7c9e); border-color: var(--pico-primary-hover, #0d7c9e); }
+  .fc .fc-daygrid-day.fc-day-today { background: var(--pico-primary-background, #e8f4f8); }
+  .fc .fc-event { border-radius: 3px; font-size: 0.78em; padding: 1px 3px; cursor: pointer; }
+  .fc-event.completed { opacity: 0.55; text-decoration: line-through; }
+  #day-detail-panel { background: var(--pico-card-background-color, #fff); border-radius: var(--pico-border-radius, 0.5rem); padding: 1em; min-height: 200px; }
+</style>
+{% endblock %}
+{% block content %}
+<div id="calendar-root">
+  <div>
+    <div id="calendar"></div>
+  </div>
+  <div>
+    <div id="day-detail-panel">
+      <p style="color:var(--pico-muted-color);font-size:0.9em">{{ t('calendar.click_hint') }}</p>
+    </div>
+  </div>
+</div>
+
+<script>
+const CATEGORY_COLORS = {
+  "주방":"#f97316","청소":"#06b6d4","세탁":"#8b5cf6","장보기":"#10b981",
+  "요리":"#ef4444","아이돌봄":"#f59e0b","기타":"#6b7280"
+};
+
+let familyId = null;
+let calendarInstance = null;
+
+function getToken() { return localStorage.getItem("token"); }
+
+async function loadDayDetail(ev, dateStr) {
+  if (!familyId) return;
+  const panel = document.getElementById("day-detail-panel");
+  panel.innerHTML = `<p style="color:var(--pico-muted-color)">${dateStr} 로딩 중...</p>`;
+  const res = await fetch(`/api/calendar/events/${dateStr}?family_id=${familyId}`, {
+    headers: {"Authorization": "Bearer " + getToken()}
+  });
+  const tasks = await res.json();
+  if (!tasks.length) {
+    panel.innerHTML = `<p style="color:var(--pico-muted-color)">${dateStr} — 할일 없음</p>`;
+    return;
+  }
+  let html = `<strong style="font-size:0.9em">${dateStr}</strong><hr style="margin:0.4em 0">`;
+  for (const t of tasks) {
+    const done = t.status === "Completed";
+    html += `<div style="padding:0.4em 0;border-bottom:1px solid var(--pico-muted-border-color)">
+      <div style="display:flex;align-items:center;gap:0.5em">
+        <span style="width:10px;height:10px;border-radius:50%;background:${t.color};flex-shrink:0"></span>
+        <span style="${done ? "text-decoration:line-through;opacity:.6" : ""}">${t.name}</span>
+      </div>
+      <div style="font-size:0.75em;color:var(--pico-muted-color);margin-left:18px">
+        ${t.category}${t.assignee ? " · " + t.assignee : ""} · ${t.score}점
+        <span style="margin-left:0.5em;padding:1px 6px;border-radius:8px;font-size:0.85em;background:${done ? "#22c55e" : "#f59e0b"};color:#fff">${done ? "완료" : "대기"}</span>
+      </div>
+    </div>`;
+  }
+  panel.innerHTML = html;
+}
+
+async function fetchEvents(info, successCallback, failureCallback) {
+  if (!familyId) { successCallback([]); return; }
+  const d = info.start;
+  const year = d.getFullYear(), month = d.getMonth() + 1;
+  try {
+    const res = await fetch(`/api/calendar/events?family_id=${familyId}&year=${year}&month=${month}`, {
+      headers: {"Authorization": "Bearer " + getToken()}
+    });
+    if (!res.ok) { failureCallback(new Error("fetch failed")); return; }
+    const events = await res.json();
+    successCallback(events.map(e => ({
+      id: String(e.id),
+      title: e.title,
+      start: e.start,
+      end: e.end,
+      backgroundColor: e.color,
+      borderColor: e.color,
+      classNames: e.status === "Completed" ? ["completed"] : [],
+      extendedProps: { status: e.status, category: e.category, taskId: e.id, is_virtual: e.is_virtual }
+    })));
+  } catch(err) { failureCallback(err); }
+}
+
+async function reschedule(taskId, newDate) {
+  if (!familyId || String(taskId).startsWith("tmpl-")) return false;
+  const dateStr = newDate.toISOString().split("T")[0];
+  const res = await fetch(
+    `/api/calendar/events/${taskId}/reschedule?family_id=${familyId}&new_due_date=${dateStr}`,
+    { method: "POST", headers: {"Authorization": "Bearer " + getToken()} }
+  );
+  return res.ok;
+}
+
+async function initCalendar() {
+  const token = getToken();
+  if (!token) { location.href = "/login"; return; }
+  const res = await fetch("/api/families", {headers: {"Authorization": "Bearer " + token}});
+  const families = await res.json();
+  if (!families.length) { document.getElementById("calendar").textContent = "가족을 먼저 만들어 주세요"; return; }
+  familyId = families[0].id;
+
+  const calEl = document.getElementById("calendar");
+  calendarInstance = new FullCalendar.Calendar(calEl, {
+    initialView: "dayGridMonth",
+    locale: "ko",
+    headerToolbar: {
+      left: "prev,next today",
+      center: "title",
+      right: "dayGridMonth,timeGridWeek,listWeek"
+    },
+    height: "auto",
+    events: fetchEvents,
+    editable: true,
+    eventDrop: async function(info) {
+      const ok = await reschedule(info.event.extendedProps.taskId, info.event.start);
+      if (!ok) info.revert();
+    },
+    dateClick: function(info) {
+      loadDayDetail(null, info.dateStr);
+    },
+    eventClick: function(info) {
+      loadDayDetail(null, info.event.startStr.slice(0,10));
+    }
+  });
+  calendarInstance.render();
+}
+
+initCalendar();
+</script>
+{% endblock %}

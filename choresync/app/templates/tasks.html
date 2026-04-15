@@ -1,0 +1,679 @@
+{% extends "base.html" %}
+{% block title %}{{ t('tasks.title') }} — ChoreSync{% endblock %}
+{% block head %}
+<style>
+  .task-card { border: 1px solid var(--pico-muted-border-color); border-radius: 8px; padding: 1em; margin-bottom: 0.75em; }
+  .task-card.completed { opacity: 0.55; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 0.78em; font-weight: 600; }
+  .badge-light { background: #e0f7fa; color: #00796b; }
+  .badge-normal { background: #fff3e0; color: #e65100; }
+  .badge-hard { background: #fce4ec; color: #c62828; }
+  .badge-pending { background: #e3f2fd; color: #1565c0; }
+  .badge-completed { background: #e8f5e9; color: #2e7d32; }
+  .score-chip { font-size: 0.85em; color: #555; }
+  .filter-bar { display: flex; gap: 0.5em; flex-wrap: wrap; margin-bottom: 1em; align-items: center; }
+  .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+  .cal-cell { border: 1px solid var(--pico-muted-border-color); border-radius: 4px; padding: 6px; min-height: 70px; font-size: 0.8em; }
+  .cal-cell.today { border-color: var(--pico-primary); background: var(--pico-primary-background); }
+  .cal-day { font-weight: 700; margin-bottom: 4px; }
+  .cal-task { background: var(--pico-secondary-background); border-radius: 3px; padding: 2px 4px; margin-bottom: 2px; cursor: pointer; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .tabs { display: flex; gap: 0; margin-bottom: 1.5em; border-bottom: 2px solid var(--pico-muted-border-color); }
+  .tab-btn { padding: 0.5em 1.2em; border: none; background: none; cursor: pointer; font-size: 1em; color: var(--pico-muted-color); }
+  .tab-btn.active { color: var(--pico-primary); border-bottom: 2px solid var(--pico-primary); margin-bottom: -2px; font-weight: 600; }
+  .task-photo { max-height: 80px; border-radius: 4px; margin-top: 6px; display: block; }
+</style>
+{% endblock %}
+{% block content %}
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1em">
+  <h2 style="margin:0">{{ t('tasks.title') }}</h2>
+  <button onclick="document.getElementById('add-modal').showModal()">+ {{ t('tasks.add') }}</button>
+</div>
+<div class="tabs">
+  <button class="tab-btn active" onclick="switchTab(this,'list')">{{ t('tasks.list') }}</button>
+  <button class="tab-btn" onclick="switchTab(this,'calendar')">{{ t('tasks.calendar_view') }}</button>
+  <button class="tab-btn" onclick="switchTab(this,'templates')">{{ t('tasks.template') }}</button>
+</div>
+<div class="filter-bar" id="list-filters">
+  <select id="filter-status" onchange="loadTasks()" style="width:auto">
+    <option value="">{{ t('tasks.all_status') }}</option>
+    <option value="Pending">{{ t('tasks.pending') }}</option>
+    <option value="Completed">{{ t('tasks.completed') }}</option>
+  </select>
+  <select id="filter-member" onchange="loadTasks()" style="width:auto"><option value="">{{ t('tasks.all_members') }}</option></select>
+  <input type="date" id="filter-date" onchange="loadTasks()" style="width:auto">
+  <button class="outline" onclick="clearFilters()">초기화</button>
+</div>
+<div id="list-view">
+  <div id="tasks-container"><article aria-busy="true">로딩 중...</article></div>
+</div>
+<div id="calendar-view" style="display:none">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1em">
+    <button class="outline" onclick="prevMonth()">&#9664;</button>
+    <strong id="cal-title"></strong>
+    <button class="outline" onclick="nextMonth()">&#9654;</button>
+  </div>
+  <div style="display:grid;grid-template-columns:repeat(7,1fr);text-align:center;font-weight:700;font-size:0.85em;margin-bottom:4px">
+    <div>일</div><div>월</div><div>화</div><div>수</div><div>목</div><div>금</div><div>토</div>
+  </div>
+  <div class="calendar-grid" id="cal-grid"></div>
+</div>
+<div id="templates-view" style="display:none">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1em">
+    <h4 style="margin:0">템플릿 목록</h4>
+    <button onclick="document.getElementById('create-template-modal').showModal()">+ {{ t('tasks.add_template') }}</button>
+  </div>
+  <div id="templates-container"><article aria-busy="true">로딩 중...</article></div>
+</div>
+<dialog id="add-modal">
+  <article>
+    <header><h3>{{ t('form.add_new_task') }}</h3></header>
+    <form id="add-form">
+      <label>{{ t('form.name') }}<input type="text" id="task-name" required maxlength="100"></label>
+      <label>{{ t('tasks.template_load') }}
+        <select id="task-template" onchange="fillFromTemplate()">
+          <option value="">{{ t('form.template_direct') }}</option>
+        </select>
+      </label>
+      <div id="ha-template-info" style="margin-top:-0.5em;margin-bottom:0.5em"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1em">
+        <label>{{ t('form.category') }}<input type="text" id="task-category" value="기타" maxlength="50"></label>
+        <label>{{ t('form.duration') }}<input type="number" id="task-minutes" value="15" min="1" max="480"></label>
+      </div>
+      <label>{{ t('form.intensity') }}
+        <select id="task-intensity">
+          <option value="Light">{{ t('form.intensity_light') }}</option>
+          <option value="Normal" selected>{{ t('form.intensity_normal') }}</option>
+          <option value="Hard">{{ t('form.intensity_hard') }}</option>
+        </select>
+      </label>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1em">
+        <label>{{ t('form.assignee') }}<select id="task-assignee"><option value="">{{ t('form.unassigned') }}</option></select></label>
+        <label>{{ t('form.due_date') }}<input type="date" id="task-due"></label>
+      </div>
+      <label>{{ t('form.note') }}<textarea id="task-note" rows="2"></textarea></label>
+      <p style="font-size:0.82em;color:#888;margin-top:0.5em">{{ t('form.repeat_hint') }}</p>
+    </form>
+    <footer>
+      <button class="secondary" onclick="document.getElementById('add-modal').close()">{{ t('common.cancel') }}</button>
+      <button onclick="submitTask()">{{ t('common.add') }}</button>
+    </footer>
+  </article>
+</dialog>
+<dialog id="create-template-modal">
+  <article>
+    <header><h3>{{ t('form.create_template') }}</h3></header>
+    <form id="create-template-form">
+      <label>{{ t('form.name') }}<input type="text" id="tmpl-name" required maxlength="100"></label>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1em">
+        <label>{{ t('form.category') }}<input type="text" id="tmpl-category" value="기타" maxlength="50"></label>
+        <label>{{ t('form.duration') }}<input type="number" id="tmpl-minutes" value="15" min="1" max="480"></label>
+      </div>
+      <label>{{ t('form.intensity') }}
+        <select id="tmpl-intensity">
+          <option value="Light">{{ t('form.intensity_light') }}</option>
+          <option value="Normal" selected>{{ t('form.intensity_normal') }}</option>
+          <option value="Hard">{{ t('form.intensity_hard') }}</option>
+        </select>
+      </label>
+      <label>{{ t('form.desc') }}<textarea id="tmpl-desc" rows="2"></textarea></label>
+      <fieldset>
+        <legend>{{ t('form.recurrence') }}</legend>
+        <label>{{ t('form.recurrence') }}
+          <select id="tmpl-recurrence" onchange="updateRecurrenceDay()">
+            <option value="">{{ t('form.no_repeat') }}</option>
+            <option value="daily">{{ t('form.recurrence_daily') }}</option>
+            <option value="weekly">{{ t('form.recurrence_weekly') }}</option>
+            <option value="biweekly">{{ t('form.recurrence_biweekly') }}</option>
+            <option value="every4weeks">{{ t('form.recurrence_every4weeks') }}</option>
+            <option value="monthly">{{ t('form.recurrence_monthly') }}</option>
+            <option value="quarterly">{{ t('form.recurrence_quarterly') }}</option>
+            <option value="semiannual">{{ t('form.recurrence_semiannual') }}</option>
+            <option value="annual">{{ t('form.recurrence_annual') }}</option>
+          </select>
+        </label>
+        <div id="recurrence-day-weekly" style="display:none">
+          <label>{{ t('form.day_mon') }}
+            <select id="tmpl-recurrence-day-weekly">
+              <option value="0">{{ t('form.day_mon') }}</option>
+              <option value="1">{{ t('form.day_tue') }}</option>
+              <option value="2">{{ t('form.day_wed') }}</option>
+              <option value="3">{{ t('form.day_thu') }}</option>
+              <option value="4">{{ t('form.day_fri') }}</option>
+              <option value="5">{{ t('form.day_sat') }}</option>
+              <option value="6">{{ t('form.day_sun') }}</option>
+            </select>
+          </label>
+        </div>
+        <div id="recurrence-day-monthly" style="display:none">
+          <label>{{ t('form.recurrence_monthly') }}<input type="number" id="tmpl-recurrence-day-monthly" min="1" max="31" value="1"></label>
+        </div>
+      </fieldset>
+      <label>{{ t('form.trigger') }}
+        <select id="tmpl-trigger">
+          <option value="">{{ t('form.trigger_none') }}</option>
+          <option value="on_arrival">{{ t('form.trigger_arrival') }}</option>
+          <option value="on_departure">{{ t('form.trigger_departure') }}</option>
+        </select>
+      </label>
+    </form>
+    <footer>
+      <button class="secondary" onclick="document.getElementById('create-template-modal').close()">{{ t('common.cancel') }}</button>
+      <button onclick="submitCreateTemplate()">{{ t('dashboard.create') }}</button>
+    </footer>
+  </article>
+</dialog>
+
+<!-- ── 템플릿 편집 모달 (마켓 임포트 템플릿) ── -->
+<dialog id="template-edit-modal">
+  <article>
+    <header>
+      <button rel="prev" onclick="document.getElementById('template-edit-modal').close()"></button>
+      <h3>{{ t('form.edit_template') }}</h3>
+    </header>
+    <p id="template-edit-name" style="font-weight:600;margin-bottom:0.8em"></p>
+    <input type="hidden" id="template-edit-id">
+    <label>{{ t('form.recurrence') }}
+      <select id="edit-recurrence" onchange="updateEditDayRow()">
+        <option value="">{{ t('form.no_repeat') }}</option>
+        <option value="daily">{{ t('form.recurrence_daily') }}</option>
+        <option value="weekly">{{ t('form.recurrence_weekly') }}</option>
+        <option value="biweekly">{{ t('form.recurrence_biweekly') }}</option>
+        <option value="every4weeks">{{ t('form.recurrence_every4weeks') }}</option>
+        <option value="monthly">{{ t('form.recurrence_monthly') }}</option>
+        <option value="quarterly">{{ t('form.recurrence_quarterly') }}</option>
+        <option value="semiannual">{{ t('form.recurrence_semiannual') }}</option>
+        <option value="annual">{{ t('form.recurrence_annual') }}</option>
+      </select>
+    </label>
+    <div id="edit-day-row" style="display:none">
+      <label>{{ t('form.day_mon') }}
+        <select id="edit-day">
+          <option value="0">{{ t('form.day_mon') }}</option>
+          <option value="1">{{ t('form.day_tue') }}</option>
+          <option value="2">{{ t('form.day_wed') }}</option>
+          <option value="3">{{ t('form.day_thu') }}</option>
+          <option value="4">{{ t('form.day_fri') }}</option>
+          <option value="5">{{ t('form.day_sat') }}</option>
+          <option value="6">{{ t('form.day_sun') }}</option>
+        </select>
+      </label>
+    </div>
+    <label>{{ t('form.assignee') }}
+      <select id="edit-assignee">
+        <option value="">{{ t('form.unassigned') }}</option>
+      </select>
+    </label>
+    <label>{{ t('form.trigger') }}
+      <select id="edit-trigger">
+        <option value="">{{ t('form.trigger_none') }}</option>
+        <option value="on_arrival">{{ t('form.trigger_arrival') }}</option>
+        <option value="on_departure">{{ t('form.trigger_departure') }}</option>
+      </select>
+    </label>
+    <footer>
+      <button class="secondary" onclick="document.getElementById('template-edit-modal').close()">{{ t('common.cancel') }}</button>
+      <button id="template-edit-save-btn" onclick="saveTemplateEdit()">{{ t('common.save') }}</button>
+    </footer>
+  </article>
+</dialog>
+<dialog id="ha-entity-modal">
+  <article>
+    <header><h3 id="ha-entity-title">{{ t('ha.entities') }}</h3></header>
+    <div id="ha-entity-content"><article aria-busy="true">로딩 중...</article></div>
+    <footer>
+<button onclick="document.getElementById('ha-entity-modal').close()">{{ t('common.close') }}</button>
+    </footer>
+  </article>
+</dialog>
+<dialog id="complete-modal">
+  <article>
+    <header><h3>{{ t('tasks.complete') }}</h3></header>
+    <input type="hidden" id="complete-task-id">
+    <label>{{ t('form.note') }}<textarea id="complete-note" rows="2"></textarea></label>
+    <label>{{ t('tasks.photo_upload') }}
+      <input type="file" id="complete-photo" accept="image/*">
+    </label>
+    <footer>
+      <button class="secondary" onclick="document.getElementById('complete-modal').close()">{{ t('common.cancel') }}</button>
+      <button onclick="doComplete()">{{ t('tasks.complete') }}</button>
+    </footer>
+  </article>
+</dialog>
+
+<!-- Phase 9-1: 위임 모달 -->
+<dialog id="delegate-modal">
+  <article>
+    <header><h3>&#128101; 할일 위임</h3></header>
+    <input type="hidden" id="delegate-task-id">
+    <p id="delegate-task-name" style="font-weight:600;margin-bottom:0.8em"></p>
+    <label>위임할 구성원
+      <select id="delegate-member"></select>
+    </label>
+    <label>메모 (선택)
+      <textarea id="delegate-note" rows="2" placeholder="부탁 메시지를 남겨보세요"></textarea>
+    </label>
+    <footer>
+      <button class="secondary" onclick="document.getElementById('delegate-modal').close()">취소</button>
+      <button onclick="doDelegate()">위임 요청</button>
+    </footer>
+  </article>
+</dialog>
+{% endblock %}
+{% block scripts %}
+<script>
+var currentFamilyId = null;
+var allMembers = [];
+var allTemplates = [];
+var calYear, calMonth;
+var calTasks = [];
+
+async function init() {
+  var families = await apiFetch("/api/families").catch(function(){return [];});
+  if (!families.length) { document.getElementById("tasks-container").innerHTML = "<p>소속 가족이 없습니다.</p>"; return; }
+  currentFamilyId = families[0].id;
+  allMembers = await apiFetch("/api/families/" + currentFamilyId + "/members");
+  allTemplates = await apiFetch("/api/families/" + currentFamilyId + "/templates").catch(function(){return [];});
+  populateMemberSelects();
+  populateTemplateSelect();
+  loadTasks();
+  var now = new Date(); calYear = now.getFullYear(); calMonth = now.getMonth();
+  renderCalendar();
+  loadTemplates();
+}
+
+function populateMemberSelects() {
+  var filt = document.getElementById("filter-member");
+  var assign = document.getElementById("task-assignee");
+  allMembers.forEach(function(m) {
+    filt.innerHTML += '<option value="' + m.id + '">' + (m.name || m.id) + '</option>';
+    assign.innerHTML += '<option value="' + m.id + '">' + (m.name || m.id) + '</option>';
+  });
+}
+
+function populateTemplateSelect() {
+  var sel = document.getElementById("task-template");
+  allTemplates.forEach(function(t) {
+    var badge = t.ha_entity_id ? ' 🏠' : '';
+    sel.innerHTML += '<option value="' + t.id + '" data-name="' + t.name + '" data-cat="' + t.category + '" data-min="' + t.estimated_minutes + '" data-int="' + t.intensity + '" data-ha="' + (t.ha_entity_id||'') + '">' + t.category + ' — ' + t.name + badge + '</option>';
+  });
+}
+
+function fillFromTemplate() {
+  var sel = document.getElementById("task-template");
+  var opt = sel.selectedOptions[0];
+  if (!opt.value) return;
+  document.getElementById("task-name").value = opt.dataset.name;
+  document.getElementById("task-category").value = opt.dataset.cat;
+  document.getElementById("task-minutes").value = opt.dataset.min;
+  document.getElementById("task-intensity").value = opt.dataset.int;
+  var ha = opt.dataset.ha;
+  var haInfo = document.getElementById("ha-template-info");
+  if (ha) {
+    if (haInfo) haInfo.innerHTML = '<small style="color:#1976D2">🏠 HA 연동: ' + ha + ' — <a href="#" onclick="showHAEntity(\'' + ha + '\');return false">상태 확인</a></small>';
+  } else {
+    if (haInfo) haInfo.innerHTML = '';
+  }
+}
+
+async function loadTasks() {
+  if (!currentFamilyId) return;
+  var params = new URLSearchParams();
+  var st = document.getElementById("filter-status").value;
+  var mb = document.getElementById("filter-member").value;
+  var dt = document.getElementById("filter-date").value;
+  if (st) params.set("task_status", st);
+  if (mb) params.set("assigned_to", mb);
+  if (dt) params.set("due_date", dt);
+  var tasks = await apiFetch("/api/families/" + currentFamilyId + "/tasks?" + params);
+  renderTasks(tasks);
+}
+
+function renderTasks(tasks) {
+  var c = document.getElementById("tasks-container");
+  if (!tasks.length) { c.innerHTML = "<p>할일이 없습니다.</p>"; return; }
+  var intensityLabel = {Light:"가벼움", Normal:"보통", Hard:"힘듦"};
+  var delegationBadge = {requested:"⏳ 위임 요청중", accepted:"✅ 위임 수락됨", rejected:"❌ 위임 거절됨"};
+  c.innerHTML = tasks.map(function(t) {
+    var isPending = t.status !== "Completed";
+    var delegated = t.delegation_status && t.delegation_status !== "rejected";
+    var delegateBtn = (isPending && !delegated)
+      ? "<button class=\"outline\" style=\"padding:4px 10px;font-size:0.85em\" onclick=\"openDelegate(" + t.id + ",'" + t.name.replace(/'/g,"\\'") + "')\">위임</button>"
+      : "";
+    var acceptRejectBtns = (isPending && t.delegation_status === "requested")
+      ? "<button style=\"padding:4px 8px;font-size:0.8em;background:#2e7d32;color:#fff;border:none;border-radius:4px\" onclick=\"acceptDelegation(" + t.id + ")\">수락</button>" +
+        "<button class=\"secondary outline\" style=\"padding:4px 8px;font-size:0.8em\" onclick=\"rejectDelegation(" + t.id + ")\">거절</button>"
+      : "";
+    return "<div class=\"task-card " + (t.status === "Completed" ? "completed" : "") + "\">" +
+      "<div style=\"display:flex;justify-content:space-between;align-items:flex-start\">" +
+      "<div><strong>" + t.name + "</strong>" +
+      " <span class=\"badge badge-" + t.intensity.toLowerCase() + "\">" + intensityLabel[t.intensity] + "</span>" +
+      " <span class=\"badge badge-" + t.status.toLowerCase() + "\">" + (t.status === "Completed" ? "완료" : "진행중") + "</span>" +
+      (t.delegation_status ? " <span style=\"font-size:0.78em;color:#e65100\">" + (delegationBadge[t.delegation_status]||"") + "</span>" : "") +
+      "</div>" +
+      "<div style=\"display:flex;gap:0.4em;flex-wrap:wrap;justify-content:flex-end\">" +
+      (isPending ? "<button class=\"outline\" style=\"padding:4px 10px;font-size:0.85em\" onclick=\"openComplete(" + t.id + ")\">완료</button>" : "") +
+      delegateBtn +
+      acceptRejectBtns +
+      "<button class=\"secondary outline\" style=\"padding:4px 10px;font-size:0.85em\" onclick=\"deleteTask(" + t.id + ")\">삭제</button>" +
+      "</div></div>" +
+      "<div style=\"font-size:0.85em;color:#666;margin-top:6px\">" +
+      t.category + " · " + t.estimated_minutes + "분 · " + t.score + "점" +
+      (t.due_date ? " · 마감: " + t.due_date : "") +
+      (t.assigned_to ? " · 담당: " + getMemberName(t.assigned_to) : "") +
+      (t.delegated_to ? " · 위임→: " + getMemberName(t.delegated_to) : "") +
+      (t.recurrence_interval ? " · 반복: " + t.recurrence_interval + "일마다" : "") +
+      "</div>" +
+      (t.photo_url ? "<img src=\"" + t.photo_url + "\" class=\"task-photo\">" : "") +
+      "</div>";
+  }).join("");
+}
+
+function getMemberName(id) {
+  var m = allMembers.find(function(m) { return m.id === id; });
+  return m ? (m.name || id) : id;
+}
+
+function clearFilters() {
+  document.getElementById("filter-status").value = "";
+  document.getElementById("filter-member").value = "";
+  document.getElementById("filter-date").value = "";
+  loadTasks();
+}
+
+async function submitTask() {
+  var body = {
+    name: document.getElementById("task-name").value,
+    category: document.getElementById("task-category").value,
+    estimated_minutes: parseInt(document.getElementById("task-minutes").value),
+    intensity: document.getElementById("task-intensity").value,
+    assigned_to: document.getElementById("task-assignee").value || null,
+    due_date: document.getElementById("task-due").value || null,
+    template_id: document.getElementById("task-template").value || null,
+    note: document.getElementById("task-note").value || null,
+  };
+  if (body.assigned_to) body.assigned_to = parseInt(body.assigned_to);
+  if (body.template_id) body.template_id = parseInt(body.template_id);
+  try {
+    await apiFetch("/api/families/" + currentFamilyId + "/tasks", {method:"POST", body:JSON.stringify(body)});
+    document.getElementById("add-modal").close();
+    document.getElementById("add-form").reset();
+    flash("할일이 추가되었습니다");
+    loadTasks(); renderCalendar();
+  } catch(e) { flash(e.message, "error"); }
+}
+
+function openComplete(taskId) {
+  document.getElementById("complete-task-id").value = taskId;
+  document.getElementById("complete-note").value = "";
+  document.getElementById("complete-photo").value = "";
+  document.getElementById("complete-modal").showModal();
+}
+
+async function doComplete() {
+  var id = document.getElementById("complete-task-id").value;
+  var note = document.getElementById("complete-note").value || null;
+  try {
+    var h = await apiFetch("/api/families/" + currentFamilyId + "/tasks/" + id + "/complete",
+      {method:"POST", body:JSON.stringify({note:note})});
+    // 사진 업로드 (있으면)
+    var photoFile = document.getElementById("complete-photo").files[0];
+    if (photoFile) {
+      var fd = new FormData();
+      fd.append("file", photoFile);
+      var token = getToken();
+      await fetch("/api/families/" + currentFamilyId + "/tasks/" + id + "/photo", {
+        method: "POST",
+        headers: {"Authorization": "Bearer " + token},
+        body: fd
+      });
+    }
+    document.getElementById("complete-modal").close();
+    flash("완료! +" + h.score_earned + "점 획득");
+    loadTasks(); renderCalendar();
+  } catch(e) { flash(e.message, "error"); }
+}
+
+async function deleteTask(id) {
+  if (!confirm("삭제하시겠습니까?")) return;
+  try {
+    await apiFetch("/api/families/" + currentFamilyId + "/tasks/" + id, {method:"DELETE"});
+    flash("삭제되었습니다"); loadTasks(); renderCalendar();
+  } catch(e) { flash(e.message, "error"); }
+}
+
+// ── Phase 9-1: 위임 ──
+function openDelegate(taskId, taskName) {
+  document.getElementById("delegate-task-id").value = taskId;
+  document.getElementById("delegate-task-name").textContent = taskName;
+  document.getElementById("delegate-note").value = "";
+  var sel = document.getElementById("delegate-member");
+  sel.innerHTML = allMembers.map(function(m) {
+    return '<option value="' + m.id + '">' + (m.name || m.id) + '</option>';
+  }).join("");
+  document.getElementById("delegate-modal").showModal();
+}
+
+async function doDelegate() {
+  var taskId = document.getElementById("delegate-task-id").value;
+  var memberId = parseInt(document.getElementById("delegate-member").value);
+  var note = document.getElementById("delegate-note").value || null;
+  try {
+    await apiFetch("/api/families/" + currentFamilyId + "/tasks/" + taskId + "/delegate", {
+      method: "POST",
+      body: JSON.stringify({delegated_to: memberId, note: note})
+    });
+    document.getElementById("delegate-modal").close();
+    flash("위임 요청을 보냈습니다!");
+    loadTasks();
+  } catch(e) { flash(e.message, "error"); }
+}
+
+async function acceptDelegation(taskId) {
+  try {
+    await apiFetch("/api/families/" + currentFamilyId + "/tasks/" + taskId + "/delegate/accept", {method:"POST"});
+    flash("위임을 수락했습니다!"); loadTasks();
+  } catch(e) { flash(e.message, "error"); }
+}
+
+async function rejectDelegation(taskId) {
+  try {
+    await apiFetch("/api/families/" + currentFamilyId + "/tasks/" + taskId + "/delegate/reject", {method:"POST"});
+    flash("위임을 거절했습니다."); loadTasks();
+  } catch(e) { flash(e.message, "error"); }
+}
+
+async function renderCalendar() {
+  if (!currentFamilyId) return;
+  calTasks = await apiFetch("/api/families/" + currentFamilyId + "/tasks");
+  drawCalendar();
+}
+
+function drawCalendar() {
+  var title = document.getElementById("cal-title");
+  var grid = document.getElementById("cal-grid");
+  var year = calYear, month = calMonth;
+  title.textContent = year + "년 " + (month+1) + "월";
+  var first = new Date(year, month, 1).getDay();
+  var days = new Date(year, month+1, 0).getDate();
+  var todayStr = new Date().toISOString().slice(0,10);
+  var html = "";
+  for (var i=0; i<first; i++) html += "<div class=\"cal-cell\"></div>";
+  for (var d=1; d<=days; d++) {
+    var ds = year + "-" + String(month+1).padStart(2,"0") + "-" + String(d).padStart(2,"0");
+    var dayTasks = calTasks.filter(function(t) { return t.due_date === ds; });
+    var isToday = ds === todayStr;
+    html += "<div class=\"cal-cell" + (isToday ? " today" : "") + "\">" +
+      "<div class=\"cal-day\">" + d + "</div>" +
+      dayTasks.map(function(t) {
+        return "<div class=\"cal-task\" title=\"" + t.name + "\" onclick=\"document.getElementById('filter-date').value='" + ds + "';loadTasks()\">" + t.name + "</div>";
+      }).join("") + "</div>";
+  }
+  grid.innerHTML = html;
+}
+
+function prevMonth() { calMonth--; if(calMonth<0){calMonth=11;calYear--;} renderCalendar(); }
+function nextMonth() { calMonth++; if(calMonth>11){calMonth=0;calYear++;} renderCalendar(); }
+
+function switchTab(btn, tab) {
+  document.querySelectorAll(".tab-btn").forEach(function(b){b.classList.remove("active");});
+  btn.classList.add("active");
+  document.getElementById("list-view").style.display = tab === "list" ? "block" : "none";
+  document.getElementById("calendar-view").style.display = tab === "calendar" ? "block" : "none";
+  document.getElementById("templates-view").style.display = tab === "templates" ? "block" : "none";
+  document.getElementById("list-filters").style.display = tab === "list" ? "flex" : "none";
+}
+
+function updateRecurrenceDay() {
+  var val = document.getElementById("tmpl-recurrence").value;
+  document.getElementById("recurrence-day-weekly").style.display = val === "weekly" ? "block" : "none";
+  document.getElementById("recurrence-day-monthly").style.display = val === "monthly" ? "block" : "none";
+}
+
+async function loadTemplates() {
+  if (!currentFamilyId) return;
+  var templates = await apiFetch("/api/families/" + currentFamilyId + "/templates?include_marketplace=true").catch(function(){return [];});
+  renderTemplateList(templates);
+}
+
+function renderTemplateList(templates) {
+  var c = document.getElementById("templates-container");
+  if (!templates.length) { c.innerHTML = "<p>템플릿이 없습니다.</p>"; return; }
+  var recLabel = {
+    daily:"매일", weekly:"매주", biweekly:"격주(2주)",
+    every4weeks:"4주마다", monthly:"매달",
+    quarterly:"분기(3개월)", semiannual:"반기(6개월)", annual:"매년"
+  };
+  c.innerHTML = templates.map(function(t) {
+    var haBtn = t.ha_entity_id ?
+      ' <span style="background:#e3f2fd;color:#1976D2;padding:2px 6px;border-radius:10px;font-size:0.78em">🏠 ' + t.ha_entity_id + '</span>' : '';
+    var recBadge = t.recurrence_interval ?
+      ' <span style="background:#e8f5e9;color:#2e7d32;padding:2px 6px;border-radius:10px;font-size:0.78em">🔄 ' + (recLabel[t.recurrence_interval]||t.recurrence_interval) + '</span>' : '';
+    return '<div class="task-card">' +
+      '<div style="display:flex;justify-content:space-between;align-items:flex-start">' +
+      '<div><strong>' + t.name + '</strong>' + haBtn + recBadge + '</div>' +
+      '<div style="display:flex;gap:0.4em">' +
+      (t.ha_entity_id ? '<button class="outline" style="padding:4px 10px;font-size:0.82em" onclick="showHAEntity(\'' + t.ha_entity_id + '\')">📡 상태</button>' : '') +
+      '<button class="outline" style="padding:4px 10px;font-size:0.82em" onclick="openTemplateEdit(' + t.id + ')">✏️ 편집</button>' +
+      '<button class="outline secondary" style="padding:4px 10px;font-size:0.82em;color:#e53e3e;border-color:#e53e3e" onclick="deleteTemplate(' + t.id + ')">🗑️ 삭제</button>' +
+      '</div></div>' +
+      '<div style="font-size:0.82em;color:#666;margin-top:4px">' + t.category + ' · ' + t.estimated_minutes + '분' +
+      (t.description ? ' · ' + t.description : '') + '</div>' +
+      '</div>';
+  }).join("");
+}
+
+
+var _editTemplateId = null;
+
+async function openTemplateEdit(templateId) {
+  _editTemplateId = templateId;
+  var templates = await apiFetch("/api/families/" + currentFamilyId + "/templates?include_marketplace=true").catch(function(){return [];});
+  var t = templates.find(function(x){ return x.id === templateId; });
+  if (!t) { flash("템플릿을 찾을 수 없습니다", "error"); return; }
+
+  // 모달 필드 채우기
+  var modal = document.getElementById("template-edit-modal");
+  var recEl = modal.querySelector("[id*='edit-recurrence'], #edit-recurrence, select[name='recurrence']");
+  // 필드 ID 탐색 (modal 내부)
+  modal.querySelectorAll("select, input").forEach(function(el) {
+    if (el.id === "edit-recurrence-interval" || el.name === "recurrence_interval") el.value = t.recurrence_interval || "";
+    if (el.id === "edit-recurrence-day" || el.name === "recurrence_day") el.value = t.recurrence_day || "";
+    if (el.id === "edit-trigger-context" || el.name === "trigger_context") el.value = t.trigger_context || "";
+    if (el.id === "edit-assigned-to" || el.name === "assigned_to") el.value = t.assigned_to || "";
+  });
+  modal.querySelector("h3").textContent = "템플릿 편집: " + t.name;
+  modal.showModal();
+}
+
+async function saveTemplateEdit() {
+  if (!_editTemplateId) return;
+  var modal = document.getElementById("template-edit-modal");
+  var body = {};
+  modal.querySelectorAll("select, input").forEach(function(el) {
+    if (el.id === "edit-recurrence-interval" || el.name === "recurrence_interval") body.recurrence_interval = el.value || null;
+    if (el.id === "edit-recurrence-day" || el.name === "recurrence_day") body.recurrence_day = el.value ? parseInt(el.value) : null;
+    if (el.id === "edit-trigger-context" || el.name === "trigger_context") body.trigger_context = el.value || null;
+    if (el.id === "edit-assigned-to" || el.name === "assigned_to") body.assigned_to = el.value ? parseInt(el.value) : null;
+  });
+  var btn = document.getElementById("template-edit-save-btn");
+  btn.disabled = true; btn.textContent = "저장 중...";
+  var res = await apiFetch("/api/families/" + currentFamilyId + "/templates/" + _editTemplateId, {
+    method: "PATCH", body: JSON.stringify(body)
+  });
+  btn.disabled = false; btn.textContent = "저장";
+  if (res && res.ok) {
+    flash("템플릿이 수정되었습니다");
+    modal.close();
+    loadTemplates();
+  } else {
+    var d = res ? await res.json().catch(function(){return {};}) : {};
+    flash(d.detail || "저장 실패", "error");
+  }
+}
+
+async function deleteTemplate(templateId) {
+  var t = (typeof allTemplates !== 'undefined' ? allTemplates : []).find(function(x){return x.id===templateId;});
+  var name = t ? t.name : '이 템플릿';
+  if (!confirm("'" + name + "' 템플릿을 삭제하시겠습니까?\n이 템플릿에서 생성된 할일은 유지됩니다.")) return;
+  var res = await apiFetch("/api/families/" + currentFamilyId + "/templates/" + templateId, { method: "DELETE" });
+  if (res && (res.ok || res.status === 204)) {
+    flash("템플릿이 삭제되었습니다");
+    loadTemplates();
+  } else {
+    var d = res ? await res.json().catch(function(){return {};}) : {};
+    flash(d.detail || "삭제 실패", "error");
+  }
+}
+
+async function showHAEntity(entityId) {
+  document.getElementById("ha-entity-title").textContent = "HA: " + entityId;
+  document.getElementById("ha-entity-content").innerHTML = "<article aria-busy='true'>로딩 중...</article>";
+  document.getElementById("ha-entity-modal").showModal();
+  try {
+    var data = await apiFetch("/api/ha/states");
+    if (!data.available) { document.getElementById("ha-entity-content").innerHTML = "<p>HA 연결 없음</p>"; return; }
+    var all = [];
+    Object.values(data.groups).forEach(function(arr) { all = all.concat(arr); });
+    var entity = all.find(function(e) { return e.entity_id === entityId; });
+    if (!entity) { document.getElementById("ha-entity-content").innerHTML = "<p>엔티티를 찾을 수 없음: " + entityId + "</p>"; return; }
+    document.getElementById("ha-entity-content").innerHTML =
+      "<p><strong>" + entity.friendly_name + "</strong></p>" +
+      "<p>상태: <strong>" + entity.state + "</strong>" + (entity.unit ? " " + entity.unit : "") + "</p>" +
+      "<p style='font-size:0.8em;color:#888'>마지막 변경: " + (entity.last_changed ? new Date(entity.last_changed).toLocaleString("ko-KR") : "-") + "</p>";
+  } catch(e) { document.getElementById("ha-entity-content").innerHTML = "<p style='color:red'>" + e.message + "</p>"; }
+}
+
+async function submitCreateTemplate() {
+  var recurrence = document.getElementById("tmpl-recurrence").value;
+  var recurrenceDay = null;
+  if (recurrence === "weekly") recurrenceDay = parseInt(document.getElementById("tmpl-recurrence-day-weekly").value);
+  if (recurrence === "monthly") recurrenceDay = parseInt(document.getElementById("tmpl-recurrence-day-monthly").value);
+  var body = {
+    name: document.getElementById("tmpl-name").value,
+    category: document.getElementById("tmpl-category").value,
+    estimated_minutes: parseInt(document.getElementById("tmpl-minutes").value),
+    intensity: document.getElementById("tmpl-intensity").value,
+    description: document.getElementById("tmpl-desc").value || null,
+    recurrence_interval: recurrence || null,
+    recurrence_day: recurrenceDay,
+    trigger_context: document.getElementById("tmpl-trigger").value || null,
+  };
+  try {
+    await apiFetch("/api/families/" + currentFamilyId + "/templates", {method:"POST", body:JSON.stringify(body)});
+    document.getElementById("create-template-modal").close();
+    document.getElementById("create-template-form").reset();
+    document.getElementById("recurrence-day-weekly").style.display = "none";
+    document.getElementById("recurrence-day-monthly").style.display = "none";
+    document.getElementById("tmpl-trigger").value = "";
+    flash("템플릿이 생성되었습니다");
+    allTemplates = await apiFetch("/api/families/" + currentFamilyId + "/templates?include_marketplace=true").catch(function(){return [];});
+    var sel = document.getElementById("task-template");
+    sel.innerHTML = '<option value="">{{ t('form.template_direct') }}</option>';
+    populateTemplateSelect();
+    loadTemplates();
+  } catch(e) { flash(e.message, "error"); }
+}
+
+init();
+</script>
+{% endblock %}

@@ -1,0 +1,164 @@
+{% extends "base.html" %}
+{% block title %}{{ t('wishes.title') }} — ChoreSync{% endblock %}
+{% block head %}
+<style>
+  .wish-card { border: 1px solid var(--pico-muted-border-color); border-radius: 8px; padding: 1em; margin-bottom: 0.75em; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 0.78em; font-weight: 600; margin-left: 4px; }
+  .badge-pending { background: #e3f2fd; color: #1565c0; }
+  .badge-approved { background: #fff3e0; color: #e65100; }
+  .badge-rejected { background: #fce4ec; color: #c62828; }
+  .badge-fulfilled { background: #e8f5e9; color: #2e7d32; }
+  .badge-cancelled { background: #f5f5f5; color: #757575; }
+  .vote-bar { display: flex; gap: 0; height: 8px; border-radius: 4px; overflow: hidden; margin-top: 6px; background: #eee; }
+  .vote-bar-approve { background: #66bb6a; height: 100%; }
+  .vote-bar-reject { background: #ef5350; height: 100%; }
+  .vote-info { font-size: 0.78em; color: #888; margin-top: 3px; }
+</style>
+{% endblock %}
+{% block content %}
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1em">
+  <h2 style="margin:0">{{ t('wishes.title') }}</h2>
+  <div>
+    <span id="score-display" style="margin-right:1em;font-size:0.9em;color:#555"></span>
+    <button onclick="document.getElementById('create-modal').showModal()">+ {{ t('wishes.add') }}</button>
+  </div>
+</div>
+<div id="wishes-container"><article aria-busy="true">로딩 중...</article></div>
+<dialog id="create-modal">
+  <article>
+    <header><h3>{{ t('wishes.new_wish') }}</h3></header>
+    <label>{{ t('wishes.title_label') }}<input type="text" id="w-title" required maxlength="100"></label>
+    <label>{{ t('wishes.desc_label') }}<textarea id="w-desc" rows="2"></textarea></label>
+    <label>{{ t('wishes.cost_label') }}<input type="number" id="w-cost" value="0" min="0" step="0.5"></label>
+    <footer>
+      <button class="secondary" onclick="document.getElementById('create-modal').close()">{{ t('common.cancel') }}</button>
+      <button onclick="createWish()">{{ t('common.add') }}</button>
+    </footer>
+  </article>
+</dialog>
+<dialog id="vote-modal">
+  <article>
+    <header><h3>{{ t('wishes.vote') }}</h3></header>
+    <input type="hidden" id="vote-wish-id">
+    <p id="vote-wish-title" style="font-weight:600"></p>
+    <label>의견 (선택)<textarea id="vote-comment" rows="2" placeholder="{{ t('wishes.vote_comment') }}"></textarea></label>
+    <footer>
+      <button class="secondary" onclick="document.getElementById('vote-modal').close()">{{ t('common.cancel') }}</button>
+      <button class="secondary" style="background:#ef5350;border-color:#ef5350;color:white" onclick="submitVote(false)">{{ t('wishes.reject') }}</button>
+      <button style="background:#66bb6a;border-color:#66bb6a;color:white" onclick="submitVote(true)">{{ t('wishes.approve') }}</button>
+    </footer>
+  </article>
+</dialog>
+{% endblock %}
+{% block scripts %}
+<script>
+var currentFamilyId = null;
+var totalMembers = 0;
+var statusLabel = {Pending:"대기", Approved:"승인됨", Rejected:"거절됨", Fulfilled:"이행됨", Cancelled:"취소"};
+
+async function apiFetch(url, opts) {
+  opts = opts || {};
+  var res = await fetch(url, Object.assign({}, opts, {
+    headers: Object.assign({"Content-Type": "application/json", "Authorization": "Bearer " + getToken()}, opts.headers || {})
+  }));
+  if (!res.ok) { var e = await res.json().catch(function(){return {};}); throw new Error(e.detail || res.statusText); }
+  return res.status === 204 ? null : res.json();
+}
+
+async function init() {
+  var families = await apiFetch("/api/families").catch(function(){return [];});
+  if (!families.length) return;
+  currentFamilyId = families[0].id;
+  var scoreData = await apiFetch("/api/families/" + currentFamilyId + "/score").catch(function(){return {total_score:0};});
+  document.getElementById("score-display").textContent = "가족 총점: " + scoreData.total_score + "점";
+  var members = await apiFetch("/api/families/" + currentFamilyId + "/members").catch(function(){return [];});
+  totalMembers = members.length;
+  loadWishes();
+}
+
+async function loadWishes() {
+  var wishes = await apiFetch("/api/families/" + currentFamilyId + "/wishes");
+  var c = document.getElementById("wishes-container");
+  if (!wishes.length) { c.innerHTML = "<p>소원이 없습니다.</p>"; return; }
+  c.innerHTML = wishes.map(function(w) {
+    var sl = w.status.toLowerCase();
+    var majority = Math.floor(totalMembers / 2) + 1;
+    var votedCount = w.vote_count || 0;
+    var approveCount = w.approve_count || 0;
+    var rejectCount = w.reject_count || 0;
+    var notVoted = totalMembers - votedCount;
+    var myVote = w.my_vote;
+    var approveWidth = totalMembers > 0 ? Math.round(approveCount/totalMembers*100) : 0;
+    var rejectWidth = totalMembers > 0 ? Math.round(rejectCount/totalMembers*100) : 0;
+
+    var voteSection = (w.status === "Pending") ?
+      "<div class='vote-bar'><div class='vote-bar-approve' style='width:" + approveWidth + "%'></div><div class='vote-bar-reject' style='width:" + rejectWidth + "%'></div></div>" +
+      "<div class='vote-info'>승인 " + approveCount + " / 거절 " + rejectCount + " / 미투표 " + notVoted + " (과반수: " + majority + "명 필요)</div>" : "";
+
+    var myVoteInfo = (w.status === "Pending" && myVote !== null && myVote !== undefined) ?
+      "<div style='font-size:0.8em;color:" + (myVote ? "#2e7d32" : "#c62828") + ";margin-top:4px'>내 투표: " + (myVote ? "✅ 승인" : "❌ 거절") + "</div>" : "";
+
+    var voteBtn = (w.status === "Pending") ?
+      "<button style='padding:4px 10px;font-size:0.85em;background:" + (myVote===true ? "#c8e6c9" : myVote===false ? "#ffcdd2" : "") + ";' onclick='openVote(" + w.id + ")'>" + (myVote!==null && myVote!==undefined ? "재투표" : "투표하기") + "</button>" : "";
+
+    var fulfillBtn = (w.status === "Approved") ?
+      "<button style='padding:4px 10px;font-size:0.85em' onclick='wishAction(" + w.id + ",\"fulfill\")'>이행</button>" : "";
+
+    var cancelBtn = (w.status !== "Fulfilled" && w.status !== "Cancelled") ?
+      "<button class='secondary outline' style='padding:4px 10px;font-size:0.85em' onclick='wishAction(" + w.id + ",\"cancel\")'>취소</button>" : "";
+
+    return "<div class='wish-card'>" +
+      "<div style='display:flex;justify-content:space-between;align-items:flex-start'>" +
+      "<div><strong>" + w.title + "</strong><span class='badge badge-" + sl + "'>"+( statusLabel[w.status]||w.status)+"</span></div>" +
+      "<div style='display:flex;gap:0.4em'>" + voteBtn + fulfillBtn + cancelBtn + "</div></div>" +
+      "<div style='font-size:0.85em;color:#666;margin-top:6px'>필요: " + (w.point_cost > 0 ? w.point_cost + "점" : "투표로 결정") + "</div>" +
+      (w.description ? "<div style='font-size:0.85em;margin-top:4px'>" + w.description + "</div>" : "") +
+      voteSection + myVoteInfo +
+      "</div>";
+  }).join("");
+}
+
+async function createWish() {
+  var body = {
+    title: document.getElementById("w-title").value,
+    description: document.getElementById("w-desc").value || null,
+    point_cost: parseFloat(document.getElementById("w-cost").value)
+  };
+  try {
+    await apiFetch("/api/families/" + currentFamilyId + "/wishes", {method:"POST", body:JSON.stringify(body)});
+    document.getElementById("create-modal").close();
+    document.getElementById("w-title").value = "";
+    document.getElementById("w-desc").value = "";
+    document.getElementById("w-cost").value = "0";
+    flash("소원이 추가되었습니다"); loadWishes();
+  } catch(e) { flash(e.message, "error"); }
+}
+
+function openVote(wishId) {
+  document.getElementById("vote-wish-id").value = wishId;
+  document.getElementById("vote-wish-title").textContent = wishTitle;
+  document.getElementById("vote-comment").value = "";
+  document.getElementById("vote-modal").showModal();
+}
+
+async function submitVote(approved) {
+  var id = document.getElementById("vote-wish-id").value;
+  var comment = document.getElementById("vote-comment").value || null;
+  try {
+    await apiFetch("/api/families/" + currentFamilyId + "/wishes/" + id + "/vote",
+      {method:"POST", body:JSON.stringify({approved:approved, comment:comment})});
+    document.getElementById("vote-modal").close();
+    flash(approved ? "승인 투표 완료" : "거절 투표 완료"); loadWishes();
+  } catch(e) { flash(e.message, "error"); }
+}
+
+async function wishAction(id, action) {
+  try {
+    await apiFetch("/api/families/" + currentFamilyId + "/wishes/" + id + "/" + action, {method:"POST", body:"{}"});
+    flash("완료"); loadWishes();
+  } catch(e) { flash(e.message, "error"); }
+}
+
+init();
+</script>
+{% endblock %}

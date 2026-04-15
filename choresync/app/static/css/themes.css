@@ -1,0 +1,243 @@
+/* ChoreSync — 10가지 UI 테마 (Pico CSS 변수 override)
+   Pico CSS v2의 :root:not([data-theme=dark]) selector specificity (0,2,0)를
+   넘기 위해 (0,3,0) 패턴 사용:
+   :root:not([data-theme=dark])[data-cs="X"],
+   :root[data-theme=light][data-cs="X"],
+   :root[data-theme=dark][data-cs="X"]
+*/
+
+/* ── 1. Default (Pico 기본값) ── */
+
+/* ── 2. Ocean Blue ── */
+:root:not([data-theme=dark])[data-cs="ocean"],
+:root[data-theme=light][data-cs="ocean"] {
+  --pico-primary: #0077b6;
+  --pico-primary-hover: #005f94;
+  --pico-primary-focus: rgba(0,119,182,.25);
+  --pico-primary-inverse: #fff;
+  --pico-background-color: #f0f8ff;
+  --pico-card-background-color: #ffffff;
+  --pico-card-border-color: #b8d9f0;
+  --pico-muted-color: #5a8fa8;
+}
+:root[data-theme=dark][data-cs="ocean"] {
+  --pico-primary: #48cae4;
+  --pico-primary-hover: #00b4d8;
+  --pico-primary-inverse: #000;
+  --pico-background-color: #0a1929;
+  --pico-card-background-color: #0d2137;
+  --pico-card-border-color: #1a3a5c;
+  --pico-color: #e0f2fe;
+  --pico-muted-color: #7ab3cc;
+}
+
+/* ── 3. Forest Green ── */
+:root:not([data-theme=dark])[data-cs="forest"],
+:root[data-theme=light][data-cs="forest"] {
+  --pico-primary: #2d6a4f;
+  --pico-primary-hover: #1b4332;
+  --pico-primary-focus: rgba(45,106,79,.25);
+  --pico-primary-inverse: #fff;
+  --pico-background-color: #f0fff4;
+  --pico-card-background-color: #ffffff;
+  --pico-card-border-color: #b7e4c7;
+  --pico-muted-color: #52b788;
+}
+:root[data-theme=dark][data-cs="forest"] {
+  --pico-primary: #52b788;
+  --pico-primary-hover: #74c69d;
+  --pico-primary-inverse: #000;
+  --pico-background-color: #081c15;
+  --pico-card-background-color: #0d2818;
+  --pico-card-border-color: #1a3d26;
+  --pico-color: #d8f3dc;
+  --pico-muted-color: #74c69d;
+}
+
+/* ── 4. Sunset ── */
+:root:not([data-theme=dark])[data-cs="sunset"],
+:root[data-theme=light][data-cs="sunset"] {
+  --pico-primary: #e76f51;
+  --pico-primary-hover: #c8502e;
+  --pico-primary-focus: rgba(231,111,81,.25);
+  --pico-primary-inverse: #fff;
+  --pico-background-color: #fff8f5;
+  --pico-card-background-color: #ffffff;
+  --pico-card-border-color: #f4c4b0;
+  --pico-muted-color: #c07b5f;
+}
+:root[data-theme=dark][data-cs="sunset"] {
+  --pico-primary: #ff9a8b;
+  --pico-primary-hover: #ffb3a7;
+  --pico-primary-inverse: #000;
+  --pico-background-color: #1a0a05;
+  --pico-card-background-color: #2a140a;
+  --pico-card-border-color: #3d1e0f;
+  --pico-color: #fdddd4;
+  --pico-muted-color: #d4856e;
+}
+
+/* ── 5. Purple Haze ── */
+:root:not([data-theme=dark])[data-cs="purple"],
+:root[data-theme=light][data-cs="purple"] {
+  --pico-primary: #7b2d8b;
+  --pico-primary-hover: #5a1f67;
+  --pico-primary-focus: rgba(123,45,139,.25);
+  --pico-primary-inverse: #fff;
+  --pico-background-color: #faf5ff;
+  --pico-card-background-color: #ffffff;
+  --pico-card-border-color: #ddb8ea;
+  --pico-muted-color: #9b5daa;
+}
+:root[data-theme=dark][data-cs="purple"] {
+  --pico-primary: #ce93d8;
+  --pico-primary-hover: #e1bee7;
+  --pico-primary-inverse: #000;
+  --pico-background-color: #12041a;
+  --pico-card-background-color: #1e0a2a;
+  --pico-card-border-color: #2e1040;
+  --pico-color: #f3d4fb;
+  --pico-muted-color: #b07cc0;
+}
+
+/* ── 6. Rose Pink ── */
+:root:not([data-theme=dark])[data-cs="rose"],
+:root[data-theme=light][data-cs="rose"] {
+  --pico-primary: #e63e7c;
+  --pico-primary-hover: #c02560;
+  --pico-primary-focus: rgba(230,62,124,.25);
+  --pico-primary-inverse: #fff;
+  --pico-background-color: #fff5f9;
+  --pico-card-background-color: #ffffff;
+  --pico-card-border-color: #f4b8d1;
+  --pico-muted-color: #c05070;
+}
+:root[data-theme=dark][data-cs="rose"] {
+  --pico-primary: #f48fb1;
+  --pico-primary-hover: #f8bbd0;
+  --pico-primary-inverse: #000;
+  --pico-background-color: #1a0510;
+  --pico-card-background-color: #2a0a1a;
+  --pico-card-border-color: #3d0f24;
+  --pico-color: #fddcec;
+  --pico-muted-color: #c06080;
+}
+
+/* ── 7. Nord ── */
+:root:not([data-theme=dark])[data-cs="nord"],
+:root[data-theme=light][data-cs="nord"] {
+  --pico-primary: #5e81ac;
+  --pico-primary-hover: #4c6b94;
+  --pico-primary-focus: rgba(94,129,172,.25);
+  --pico-primary-inverse: #fff;
+  --pico-background-color: #eceff4;
+  --pico-card-background-color: #e5e9f0;
+  --pico-card-border-color: #d8dee9;
+  --pico-color: #2e3440;
+  --pico-muted-color: #4c566a;
+}
+:root[data-theme=dark][data-cs="nord"] {
+  --pico-primary: #88c0d0;
+  --pico-primary-hover: #8fbcbb;
+  --pico-primary-inverse: #000;
+  --pico-background-color: #2e3440;
+  --pico-card-background-color: #3b4252;
+  --pico-card-border-color: #4c566a;
+  --pico-color: #eceff4;
+  --pico-muted-color: #81a1c1;
+}
+
+/* ── 8. Solarized ── */
+:root:not([data-theme=dark])[data-cs="solarized"],
+:root[data-theme=light][data-cs="solarized"] {
+  --pico-primary: #268bd2;
+  --pico-primary-hover: #1a6fa8;
+  --pico-primary-focus: rgba(38,139,210,.25);
+  --pico-primary-inverse: #fff;
+  --pico-background-color: #fdf6e3;
+  --pico-card-background-color: #eee8d5;
+  --pico-card-border-color: #d9ceb0;
+  --pico-color: #657b83;
+  --pico-muted-color: #93a1a1;
+}
+:root[data-theme=dark][data-cs="solarized"] {
+  --pico-primary: #2aa198;
+  --pico-primary-hover: #58c5c1;
+  --pico-primary-inverse: #fff;
+  --pico-background-color: #002b36;
+  --pico-card-background-color: #073642;
+  --pico-card-border-color: #0c4d5e;
+  --pico-color: #839496;
+  --pico-muted-color: #657b83;
+}
+
+/* ── 9. Midnight ── */
+:root:not([data-theme=dark])[data-cs="midnight"],
+:root[data-theme=light][data-cs="midnight"],
+:root[data-theme=dark][data-cs="midnight"] {
+  --pico-primary: #4fc3f7;
+  --pico-primary-hover: #29b6f6;
+  --pico-primary-focus: rgba(79,195,247,.25);
+  --pico-primary-inverse: #000;
+  --pico-background-color: #0d0d1a;
+  --pico-card-background-color: #12122a;
+  --pico-card-border-color: #1e1e40;
+  --pico-color: #c9d1e8;
+  --pico-muted-color: #8892b0;
+}
+
+/* ── 10. Warm Sand ── */
+:root:not([data-theme=dark])[data-cs="sand"],
+:root[data-theme=light][data-cs="sand"] {
+  --pico-primary: #b5651d;
+  --pico-primary-hover: #8b4a13;
+  --pico-primary-focus: rgba(181,101,29,.25);
+  --pico-primary-inverse: #fff;
+  --pico-background-color: #fdf8f0;
+  --pico-card-background-color: #fdf3e3;
+  --pico-card-border-color: #e8d5b0;
+  --pico-color: #5c3d0e;
+  --pico-muted-color: #8b6914;
+}
+:root[data-theme=dark][data-cs="sand"] {
+  --pico-primary: #e09050;
+  --pico-primary-hover: #f0a060;
+  --pico-primary-inverse: #000;
+  --pico-background-color: #1a0f05;
+  --pico-card-background-color: #2a1a08;
+  --pico-card-border-color: #3d250c;
+  --pico-color: #f5e8d0;
+  --pico-muted-color: #b08050;
+}
+
+/* ── 테마 피커 UI ── */
+.theme-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 0.5em;
+  margin: 0.5em 0;
+}
+.theme-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 0.5em 0.3em;
+  border: 2px solid transparent;
+  border-radius: 8px;
+  cursor: pointer;
+  background: none;
+  color: var(--pico-contrast);
+  font-size: 0.75em;
+  transition: border-color .15s;
+}
+.theme-btn:hover { border-color: var(--pico-primary); }
+.theme-btn.active { border-color: var(--pico-primary); font-weight: 700; }
+.theme-dot {
+  width: 24px; height: 24px;
+  border-radius: 50%;
+  border: 1px solid rgba(0,0,0,.1);
+}
+@media (max-width: 480px) {
+  .theme-grid { grid-template-columns: repeat(4, 1fr); }
+}

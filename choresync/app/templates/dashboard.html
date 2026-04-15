@@ -1,0 +1,483 @@
+{% extends "base.html" %}
+{% block title %}{{ t('dashboard.title') }} — ChoreSync{% endblock %}
+{% block content %}
+<h1>&#129529; {{ t('dashboard.title') }}</h1>
+<div id="family-section">
+  <article>
+    <header><h3>{{ t('dashboard.my_family') }}</h3></header>
+    <div id="family-list">{{ t('common.loading') }}</div>
+    <hr>
+    <details>
+      <summary>{{ t('dashboard.create_family') }}</summary>
+      <form onsubmit="createFamily(event)">
+        <input type="text" id="family-name" placeholder="{{ t('dashboard.family_name') }}" required>
+        <select id="my-role">
+          <option value="아빠">{{ t('form.role_dad') }}</option><option value="엄마">{{ t('form.role_mom') }}</option>
+          <option value="아들">{{ t('form.role_son') }}</option><option value="딸">{{ t('form.role_daughter') }}</option>
+          <option value="기타">{{ t('form.role_other') }}</option>
+        </select>
+        <label style="font-size:0.85em;color:#666;margin-top:0.5em;display:block">{{ t('dashboard.family_type') }}</label>
+        <select id="family-pack">
+          <option value="공통">{{ t('form.common_45') }}</option>
+          <option value="1인">1인 가족</option>
+          <option value="2인">{{ t('form.family_2') }}</option>
+          <option value="3인_영유아">3인 — 영유아 (0~5세)</option>
+          <option value="3인_초등">3인 — 초등학생 (6~12세)</option>
+          <option value="3인_중고등">3인 — 중고등학생 (13~18세)</option>
+          <option value="4인">4인 가족</option>
+        </select>
+        <button type="submit">{{ t('dashboard.create') }}</button>
+      </form>
+    </details>
+    <details>
+      <summary>{{ t('dashboard.join_family') }}</summary>
+      <form onsubmit="joinFamily(event)">
+        <input type="text" id="invite-code" placeholder="{{ t('dashboard.invite_code') }}" required>
+        <select id="join-role">
+          <option value="아빠">{{ t('form.role_dad') }}</option><option value="엄마">{{ t('form.role_mom') }}</option>
+          <option value="아들">{{ t('form.role_son') }}</option><option value="딸">{{ t('form.role_daughter') }}</option>
+          <option value="기타">{{ t('form.role_other') }}</option>
+        </select>
+        <button type="submit">{{ t('dashboard.join') }}</button>
+      </form>
+    </details>
+  </article>
+</div>
+
+<!-- Phase 10-2: 패턴 제안 카드 -->
+<div id="pattern-suggestions-card" style="display:none">
+  <article>
+    <header><h3>&#129302; 정기 할일 제안</h3></header>
+    <div id="suggestions-list"></div>
+  </article>
+</div>
+
+<!-- Phase 9-2: 가족 레벨 카드 -->
+<article id="family-level-card" style="display:none">
+  <header style="display:flex;align-items:center;gap:0.5em">
+    <span id="level-badge" style="font-size:1.6em">🏅</span>
+    <div>
+      <strong id="level-name" style="font-size:1.05em">-</strong>
+      <small id="level-num" style="color:var(--pico-muted-color);margin-left:0.4em">Lv.1</small>
+    </div>
+  </header>
+  <progress id="level-progress" value="0" max="100" style="width:100%;margin:0.4em 0"></progress>
+  <div style="display:flex;justify-content:space-between;font-size:0.82em;color:var(--pico-muted-color)">
+    <span id="level-score">0점</span>
+    <span id="level-next">다음 레벨: -점</span>
+  </div>
+</article>
+
+<!-- Phase 10-3: 주간 리포트 카드 -->
+<article id="weekly-report-card" style="display:none">
+  <header><h3>&#128202; 이번 주 리포트</h3></header>
+  <div style="display:flex;gap:1em;flex-wrap:wrap;margin-bottom:0.6em">
+    <div style="text-align:center;flex:1;min-width:80px">
+      <div id="wr-count" style="font-size:1.8em;font-weight:700;color:var(--pico-primary)">-</div>
+      <small style="color:var(--pico-muted-color)">완료한 할일</small>
+    </div>
+    <div style="text-align:center;flex:1;min-width:80px">
+      <div id="wr-score" style="font-size:1.8em;font-weight:700;color:var(--pico-primary)">-</div>
+      <small style="color:var(--pico-muted-color)">획득 점수</small>
+    </div>
+    <div style="text-align:center;flex:1;min-width:80px">
+      <div id="wr-mvp" style="font-size:1.4em;font-weight:700">-</div>
+      <small style="color:var(--pico-muted-color)">이번 주 MVP</small>
+    </div>
+  </div>
+  <div id="wr-tasks" style="font-size:0.85em;color:var(--pico-muted-color);margin-top:0.4em"></div>
+</article>
+
+<article id="tts-section" style="display:none">
+  <header><h3>&#128226; {{ t('dashboard.tts_section') }}</h3></header>
+  <div style="display:flex;gap:0.5em;margin-bottom:0.5em">
+    <input type="text" id="tts-text" placeholder="{{ t('dashboard.chat_placeholder') }}" style="flex:1">
+    <button onclick="sendTTS()">{{ t('dashboard.speak') }}</button>
+  </div>
+  <div style="display:flex;gap:0.5em;align-items:center;margin-bottom:0.4em">
+    <label style="font-size:0.85em;color:#666;margin:0;white-space:nowrap">{{ t('dashboard.speaker') }}:</label>
+    <select id="tts-player" style="font-size:0.85em;flex:1">
+      <option value="">{{ t('common.loading') }}</option>
+    </select>
+  </div>
+  <div style="display:flex;gap:0.5em;align-items:center">
+    <label style="font-size:0.85em;color:#666;margin:0;white-space:nowrap">{{ t('dashboard.tts_engine') }}:</label>
+    <select id="tts-engine" style="font-size:0.85em;flex:1">
+      <option value="">{{ t('dashboard.auto_engine') }}</option>
+    </select>
+  </div>
+</article>
+
+
+<article id="chat-section" style="display:none">
+  <header style="display:flex;justify-content:space-between;align-items:center">
+    <h3 style="margin:0">&#129302; {{ t('dashboard.ai_assistant') }}</h3>
+    <small id="llm-status" style="color:var(--pico-muted-color)">{{ t('common.loading') }}</small>
+  </header>
+  <div id="chat-history" style="max-height:220px;overflow-y:auto;margin-bottom:0.8em;padding:0.5em;border:1px solid var(--pico-muted-border-color);border-radius:6px;background:var(--pico-card-sectioning-background-color);font-size:0.88em">
+    <p id="chat-empty" style="color:var(--pico-muted-color);margin:0;text-align:center">{{ t('dashboard.chat_placeholder') }}<br><small>{{ t('dashboard.chat_example') }}</small></p>
+  </div>
+  <div style="display:flex;gap:0.5em;margin-bottom:0.4em">
+    <input type="text" id="chat-input" placeholder="{{ t('dashboard.chat_example') }}" style="flex:1" onkeydown="if(event.key==='Enter')sendChat()">
+    <button id="mic-btn" class="outline" onclick="toggleMic()" title="{{ t('dashboard.voice_input') }}" style="padding:0.4em 0.6em;font-size:1.1em">&#127908;</button>
+    <button onclick="sendChat()">{{ t('dashboard.send') }}</button>
+  </div>
+  <div style="display:flex;align-items:center;gap:0.5em">
+    <label style="font-size:0.8em;color:var(--pico-muted-color);margin:0;white-space:nowrap">{{ t('dashboard.read_response') }}:</label>
+    <select id="chat-tts-player" style="font-size:0.82em;flex:1">
+      <option value="">{{ t('dashboard.none_text_only') }}</option>
+    </select>
+  </div>
+</article>
+
+<article>
+  <header><h3>&#128722; {{ t('dashboard.market_section') }}</h3></header>
+  <p style="color:#666;font-size:0.9em">{{ t('dashboard.market_desc') }}</p>
+  <a href="/marketplace" role="button" class="outline">{{ t('dashboard.market_browse') }}</a>
+</article>
+{% endblock %}
+{% block scripts %}
+<script>
+  var _currentFamilyId = null;
+
+  async function apiFetch(url, opts) {
+    opts = opts || {};
+    opts.headers = Object.assign({}, opts.headers, {'Authorization': 'Bearer ' + getToken(), 'Content-Type': 'application/json'});
+    const res = await fetch(url, opts);
+    if (res.status === 401) { logout(); return null; }
+    return res;
+  }
+
+  async function loadFamilies() {
+    const res = await apiFetch('/api/families');
+    if (!res) return;
+    const families = await res.json();
+    const el = document.getElementById('family-list');
+    if (families.length === 0) {
+      el.innerHTML = '<p>아직 가족이 없습니다.</p>';
+      return;
+    }
+    _currentFamilyId = families[0].id;
+    document.getElementById('tts-section').style.display = 'block';
+    showChatSection();
+    loadFamilyLevel(_currentFamilyId);
+    loadPatternSuggestions(_currentFamilyId);
+    loadWeeklyReport(_currentFamilyId);
+    el.innerHTML = families.map(function(f) {
+      return '<div style="padding:1em;margin-bottom:0.5em;border:1px solid var(--pico-muted-border-color);border-radius:8px">' +
+        '<div style="display:flex;justify-content:space-between;align-items:center">' +
+        '<strong>' + f.name + '</strong>' +
+        '<button class="outline" style="padding:2px 8px;font-size:0.8em" onclick="copyCode(\'' + f.invite_code + '\')">코드 복사</button>' +
+        '</div>' +
+        '<small style="color:#888">초대코드: ' + f.invite_code + '</small>' +
+        '</div>';
+    }).join('');
+  }
+
+  function copyCode(code) {
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(code).then(function() { flash('초대 코드가 복사되었습니다: ' + code); });
+    } else {
+      var el = document.createElement('textarea');
+      el.value = code;
+      document.body.appendChild(el);
+      el.select();
+      document.execCommand('copy');
+      document.body.removeChild(el);
+      flash('초대 코드가 복사되었습니다: ' + code);
+    }
+  }
+
+  async function sendTTS() {
+    var text = document.getElementById('tts-text').value.trim();
+    if (!text) { flash('텍스트를 입력하세요', 'error'); return; }
+    if (!_currentFamilyId) { flash('가족이 없습니다', 'error'); return; }
+    var player = document.getElementById('tts-player');
+    var mediaPlayer = player ? player.value : '';
+    var engSel = document.getElementById('tts-engine');
+    var ttsEngine = engSel ? engSel.value : '';
+    var res = await apiFetch('/api/families/' + _currentFamilyId + '/tts', {
+      method: 'POST',
+      body: JSON.stringify({text: text, media_player: mediaPlayer, tts_engine: ttsEngine})
+    });
+    if (res && res.ok) {
+      flash('TTS 발화 요청이 전송되었습니다');
+      document.getElementById('tts-text').value = '';
+    } else if (res) {
+      var d = await res.json();
+      flash(d.detail || '오류', 'error');
+    }
+  }
+
+  async function loadMediaPlayers() {
+    var res = await apiFetch('/api/ha/media-players');
+    if (!res || !res.ok) return;
+    var data = await res.json();
+    var sel = document.getElementById('tts-player');
+    if (!sel || !data.available) {
+      if (sel) sel.innerHTML = '<option value="">미연결 (SUPERVISOR_TOKEN 필요)</option>';
+      return;
+    }
+    var players = data.players || [];
+    sel.innerHTML = players.map(function(p) {
+      return '<option value="' + p.entity_id + '">' + p.friendly_name + ' [' + p.state + ']</option>';
+    }).join('') || '<option value="">media_player 없음</option>';
+
+    // TTS 엔진 목록 로드
+    var engRes = await apiFetch('/api/ha/tts-entities');
+    if (engRes && engRes.ok) {
+      var engData = await engRes.json();
+      var engSel = document.getElementById('tts-engine');
+      if (engSel && engData.available && engData.entities.length) {
+        engSel.innerHTML = '<option value="">자동 (추천 엔진 사용)</option>' +
+          engData.entities.map(function(e) {
+            return '<option value="' + e.entity_id + '">' + e.friendly_name + '</option>';
+          }).join('');
+      }
+    }
+  }
+
+  async function createFamily(e) {
+    e.preventDefault();
+    const res = await apiFetch('/api/auth/create-family', {
+      method: 'POST',
+      body: JSON.stringify({ name: document.getElementById('family-name').value, family_role: document.getElementById('my-role').value, family_pack: document.getElementById('family-pack').value }),
+    });
+    if (res && res.ok) { flash('가족이 생성되었습니다!'); loadFamilies(); }
+    else if (res) { const d = await res.json(); flash(d.detail || '오류', 'error'); }
+  }
+
+  async function joinFamily(e) {
+    e.preventDefault();
+    const res = await apiFetch('/api/auth/join-family', {
+      method: 'POST',
+      body: JSON.stringify({ invite_code: document.getElementById('invite-code').value, family_role: document.getElementById('join-role').value }),
+    });
+    if (res && res.ok) { flash('가족에 합류했습니다!'); loadFamilies(); }
+    else if (res) { const d = await res.json(); flash(d.detail || '오류', 'error'); }
+  }
+
+
+  // ── LLM 챗봇 ──
+  var chatMessages = [];
+  var speechRecognition = null;
+  var isListening = false;
+
+  async function checkLLM() {
+    try {
+      var res = await fetch('/api/chat/health', {headers: {'Authorization': 'Bearer ' + getToken()}});
+      if (res.ok) {
+        var d = await res.json();
+        document.getElementById('llm-status').textContent = d.available ? ('✓ ' + d.model) : '미연결';
+        document.getElementById('llm-status').style.color = d.available ? '#2e7d32' : 'var(--pico-muted-color)';
+      }
+    } catch(e) {}
+  }
+
+  function addChatMessage(role, text, intent) {
+    chatMessages.push({role, text});
+    if (chatMessages.length > 20) chatMessages.shift();
+    var el = document.getElementById('chat-history');
+    var empty = document.getElementById('chat-empty');
+    if (empty) empty.style.display = 'none';
+
+    var div = document.createElement('div');
+    div.style.cssText = 'margin-bottom:0.5em;' + (role === 'user' ? 'text-align:right' : '');
+    var bubble = document.createElement('span');
+    bubble.style.cssText = 'display:inline-block;padding:0.3em 0.6em;border-radius:10px;max-width:85%;' +
+      (role === 'user' ? 'background:var(--pico-primary);color:#fff' : 'background:var(--pico-card-background-color);border:1px solid var(--pico-muted-border-color)');
+    bubble.textContent = text;
+    if (intent && intent !== 'unknown') {
+      var badge = document.createElement('small');
+      badge.style.cssText = 'display:block;color:var(--pico-muted-color);font-size:0.75em;margin-top:2px';
+      badge.textContent = {complete_task:'✓ 완료 처리', add_task:'+ 할일 추가', list_tasks:'목록 조회', score:'점수 조회'}[intent] || '';
+      bubble.appendChild(badge);
+    }
+    div.appendChild(bubble);
+    el.appendChild(div);
+    el.scrollTop = el.scrollHeight;
+  }
+
+  async function sendChat() {
+    var input = document.getElementById('chat-input');
+    var text = input.value.trim();
+    if (!text) return;
+    if (!_currentFamilyId) { flash('가족이 없습니다', 'error'); return; }
+
+    addChatMessage('user', text);
+    input.value = '';
+    // 로딩 표시
+    var loadingId = 'loading-' + Date.now();
+    addChatMessage('assistant', '...', '', loadingId);
+    var sendBtn = document.querySelector('#chat-panel button[onclick="sendChat()"]') ||
+                  document.querySelector('button[onclick="sendChat()"]');
+    if (sendBtn) sendBtn.disabled = true;
+
+    var ttsPlayer = document.getElementById('chat-tts-player');
+    var ttsTarget = ttsPlayer ? ttsPlayer.value : '';
+
+    try {
+      var res = await fetch('/api/chat/message', {
+        method: 'POST',
+        headers: {'Authorization': 'Bearer ' + getToken(), 'Content-Type': 'application/json'},
+        body: JSON.stringify({message: text, family_id: _currentFamilyId, tts_target: ttsTarget})
+      });
+      var d = await res.json();
+      if (res.ok) {
+        // 로딩 메시지 제거 후 실제 응답 표시
+        var el = document.getElementById(loadingId);
+        if (el) el.parentNode.removeChild(el);
+        addChatMessage('assistant', d.text, d.intent);
+        // 할일 완료 액션 처리
+        if (d.action && d.action.type === 'complete_task') {
+          var taskRes = await fetch('/api/families/' + _currentFamilyId + '/tasks/' + d.action.task_id + '/complete', {
+            method: 'POST',
+            headers: {'Authorization': 'Bearer ' + getToken(), 'Content-Type': 'application/json'},
+            body: JSON.stringify({note: 'AI 명령으로 완료'})
+          });
+          if (taskRes.ok) flash('할일이 완료 처리되었습니다!');
+        }
+        // 할일 추가 액션 처리
+        if (d.action && d.action.type === 'add_task') {
+          flash('✅ "' + d.action.task_name + '" 할일이 추가되었습니다!');
+        }
+      } else {
+        var el = document.getElementById(loadingId);
+        if (el) el.parentNode.removeChild(el);
+        addChatMessage('assistant', d.detail || '오류가 발생했습니다.', '');
+      }
+    } catch(e) {
+      var el = document.getElementById(loadingId);
+      if (el) el.parentNode.removeChild(el);
+      addChatMessage('assistant', '연결 오류: ' + e.message, '');
+    } finally {
+      if (sendBtn) sendBtn.disabled = false;
+    }
+  }
+
+  function toggleMic() {
+    var SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRec) { flash('이 브라우저는 음성인식을 지원하지 않습니다', 'error'); return; }
+    if (!speechRecognition) {
+      speechRecognition = new SpeechRec();
+      speechRecognition.lang = 'ko-KR';
+      speechRecognition.continuous = false;
+      speechRecognition.interimResults = false;
+      speechRecognition.onresult = function(e) {
+        var transcript = e.results[0][0].transcript;
+        document.getElementById('chat-input').value = transcript;
+        sendChat();
+      };
+      speechRecognition.onend = function() {
+        isListening = false;
+        document.getElementById('mic-btn').style.color = '';
+      };
+      speechRecognition.onerror = function(e) {
+        isListening = false;
+        document.getElementById('mic-btn').style.color = '';
+      };
+    }
+    if (isListening) {
+      speechRecognition.stop();
+    } else {
+      isListening = true;
+      document.getElementById('mic-btn').style.color = '#e53935';
+      speechRecognition.start();
+    }
+  }
+
+  async function showChatSection() {
+    if (!_currentFamilyId) return;
+    document.getElementById('chat-section').style.display = 'block';
+    // 채팅 TTS 스피커 목록 동기화
+    var playerSel = document.getElementById('tts-player');
+    var chatPlayerSel = document.getElementById('chat-tts-player');
+    if (playerSel && chatPlayerSel && playerSel.options.length > 1) {
+      chatPlayerSel.innerHTML = '<option value="">없음 (텍스트만)</option>';
+      for (var i = 0; i < playerSel.options.length; i++) {
+        var o = playerSel.options[i];
+        if (o.value) {
+          chatPlayerSel.innerHTML += '<option value="' + o.value + '">' + o.text + '</option>';
+        }
+      }
+    }
+    checkLLM();
+  }
+
+  loadFamilies();
+  loadMediaPlayers();
+
+  async function loadPatternSuggestions(familyId) {
+    try {
+      var r = await apiFetch('/api/families/' + familyId + '/suggestions');
+      if (!r || !r.ok) return;
+      var data = await r.json();
+      var suggestions = data.suggestions || [];
+      if (!suggestions.length) return;
+      var card = document.getElementById('pattern-suggestions-card');
+      var list = document.getElementById('suggestions-list');
+      card.style.display = '';
+      list.innerHTML = suggestions.map(function(s) {
+        return '<div style="display:flex;align-items:center;justify-content:space-between;padding:0.5em 0;border-bottom:1px solid var(--pico-muted-border-color)">' +
+          '<span style="font-size:0.9em">' + s.message + '</span>' +
+          '<div style="display:flex;gap:0.4em;flex-shrink:0;margin-left:0.5em">' +
+          '<button style="font-size:0.78em;padding:2px 8px" onclick="acceptSuggestion(\'' + s.task_name.replace(/'/g,"\\'") + '\',' + s.weekday + ')">등록</button>' +
+          '<button class="outline secondary" style="font-size:0.78em;padding:2px 8px" onclick="this.closest(\'div\').parentElement.remove()">무시</button>' +
+          '</div></div>';
+      }).join('');
+    } catch(e) { console.warn('suggestions load error', e); }
+  }
+
+  async function acceptSuggestion(taskName, weekday) {
+    var familyId = _currentFamilyId;
+    if (!familyId) return;
+    try {
+      await apiFetch('/api/families/' + familyId + '/suggestions/accept', {
+        method: 'POST',
+        body: JSON.stringify({task_name: taskName, weekday: weekday}),
+      });
+      flash('✅ \'' + taskName + '\' 정기 할일로 등록됐습니다!');
+      loadPatternSuggestions(familyId);
+    } catch(e) { flash('등록 실패: ' + e.message, 'error'); }
+  }
+
+  async function loadFamilyLevel(familyId) {
+    try {
+      var r = await apiFetch('/api/families/' + familyId + '/level');
+      if (!r || !r.ok) return;
+      var d = await r.json();
+      var card = document.getElementById('family-level-card');
+      if (!card) return;
+      card.style.display = '';
+      var BADGES = ['','🥚','🐣','🐥','🐦','🏅','🥈','🥇','🏆','👑','🌟'];
+      document.getElementById('level-badge').textContent = BADGES[d.level] || '🏅';
+      document.getElementById('level-name').textContent = d.level_name;
+      document.getElementById('level-num').textContent = 'Lv.' + d.level;
+      document.getElementById('level-progress').value = d.progress_pct;
+      document.getElementById('level-score').textContent = (d.total_score||0).toLocaleString() + '점';
+      document.getElementById('level-next').textContent = d.next_level_score
+        ? '다음 레벨: ' + d.next_level_score.toLocaleString() + '점'
+        : '최고 레벨 달성! 🎉';
+    } catch(e) { console.warn('level load error', e); }
+  }
+
+  async function loadWeeklyReport(familyId) {
+    try {
+      var r = await apiFetch('/api/families/' + familyId + '/weekly-report');
+      if (!r || !r.ok) return;
+      var d = await r.json();
+      var card = document.getElementById('weekly-report-card');
+      if (!card) return;
+      card.style.display = '';
+      document.getElementById('wr-count').textContent = d.total_count;
+      document.getElementById('wr-score').textContent = (d.total_score || 0).toLocaleString() + 'pt';
+      document.getElementById('wr-mvp').textContent = d.mvp_name ? ('🏆 ' + d.mvp_name) : '-';
+      if (d.week_tasks && d.week_tasks.length) {
+        var names = d.week_tasks.slice(0, 5).map(function(t) { return t.name || t; }).join(', ');
+        var extra = d.week_tasks.length > 5 ? ' 외 ' + (d.week_tasks.length - 5) + '개' : '';
+        document.getElementById('wr-tasks').textContent = '완료: ' + names + extra;
+      }
+    } catch(e) { console.warn('weekly report load error', e); }
+  }
+</script>
+{% endblock %}

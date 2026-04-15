@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}{{ t('devices.title') }} — ChoreSync{% endblock %}
+{% block content %}
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1em">
+  <h2 style="margin:0">{{ t('devices.title') }}</h2>
+  <button onclick="document.getElementById('create-modal').showModal()">+ {{ t('devices.add') }}</button>
+</div>
+<div id="devices-container"><article aria-busy="true">로딩 중...</article></div>
+<dialog id="create-modal">
+  <article>
+    <header><h3>{{ t('devices.register') }}</h3></header>
+    <label>{{ t('devices.name') }}<input type="text" id="d-name" required maxlength="100"></label>
+    <label>{{ t('devices.type') }}<select id="d-type">
+      <option value="Sensor">센서</option>
+      <option value="Switch">스위치</option>
+      <option value="Camera">카메라</option>
+      <option value="Other">기타</option>
+    </select></label>
+    <label>MQTT Topic<input type="text" id="d-topic" maxlength="200" placeholder="choresync/home/sensor1"></label>
+    <label>{{ t('devices.desc') }}<input type="text" id="d-desc" maxlength="200"></label>
+    <footer>
+      <button class="secondary" onclick="document.getElementById('create-modal').close()">{{ t('common.cancel') }}</button>
+      <button onclick="createDevice()">{{ t('devices.register') }}</button>
+    </footer>
+  </article>
+</dialog>
+{% endblock %}
+{% block scripts %}
+<script>
+var currentFamilyId = null;
+async function apiFetch(url, opts) {
+  opts = opts || {};
+  var res = await fetch(url, Object.assign({}, opts, {
+    headers: Object.assign({"Content-Type": "application/json", "Authorization": "Bearer " + getToken()}, opts.headers || {})
+  }));
+  if (!res.ok) { var e = await res.json().catch(function(){return {};}); throw new Error(e.detail || res.statusText); }
+  return res.status === 204 ? null : res.json();
+}
+async function init() {
+  var families = await apiFetch("/api/families").catch(function(){return [];});
+  if (!families.length) return;
+  currentFamilyId = families[0].id;
+  loadDevices();
+}
+async function loadDevices() {
+  var devices = await apiFetch("/api/families/" + currentFamilyId + "/devices");
+  var c = document.getElementById("devices-container");
+  var activeDevices = devices.filter(function(d){ return d.is_active; });
+  if (!devices.length) { c.innerHTML = "<p>등록된 기기가 없습니다. + 기기 추가 버튼을 눌러 MQTT 기기를 등록하세요.</p>"; return; }
+  if (!activeDevices.length) { c.innerHTML = "<p>모든 기기가 비활성화 상태입니다.</p>"; return; }
+  c.innerHTML = activeDevices.map(function(d) {
+    return "<div style='border:1px solid var(--pico-muted-border-color);border-radius:8px;padding:1em;margin-bottom:0.75em'>"+
+      "<strong>" + d.name + "</strong> <small>(" + d.device_type + ")</small>" +
+      (d.mqtt_topic ? "<div style='font-size:0.85em;color:#666'>Topic: " + d.mqtt_topic + "</div>" : "") +
+      (d.description ? "<div style='font-size:0.85em'>" + d.description + "</div>" : "") +
+      "</div>";
+  }).join("");
+}
+async function createDevice() {
+  var body = {
+    name: document.getElementById("d-name").value,
+    device_type: document.getElementById("d-type").value,
+    mqtt_topic: document.getElementById("d-topic").value || null,
+    description: document.getElementById("d-desc").value || null
+  };
+  try {
+    await apiFetch("/api/families/" + currentFamilyId + "/devices", {method:"POST", body:JSON.stringify(body)});
+    document.getElementById("create-modal").close();
+    flash("기기가 등록되었습니다"); loadDevices();
+  } catch(e) { flash(e.message, "error"); }
+}
+init();
+</script>
+{% endblock %}

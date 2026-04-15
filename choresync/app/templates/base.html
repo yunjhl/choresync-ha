@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}" data-theme="light" data-cs="default">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#1a73e8">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="ChoreSync">
+  <link rel="manifest" href="{{ base_path }}/static/manifest.json">
+  <title>{% block title %}ChoreSync{% endblock %}</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+  <link rel="stylesheet" href="{{ base_path }}/static/css/themes.css">
+  <script src="https://unpkg.com/htmx.org@2.0.0"></script>
+  <script>window.BASE = "{{ base_path }}";</script>
+  <style>
+    nav .brand { font-weight: 700; font-size: 1.2em; }
+    .flash { padding: 0.75em 1em; border-radius: 8px; margin-bottom: 1em; }
+    .flash-error { background: #fee; color: #c00; border: 1px solid #fcc; }
+    .flash-success { background: #efe; color: #060; border: 1px solid #cfc; }
+    .hidden { display: none; }
+    #sse-indicator { width: 10px; height: 10px; border-radius: 50%; background: #ccc; display: inline-block; margin-left: 6px; }
+    #sse-indicator.connected { background: #4caf50; }
+    [data-theme="dark"] .flash-error { background: #3c0000; color: #faa; border-color: #c66; }
+    [data-theme="dark"] .flash-success { background: #003000; color: #8e8; border-color: #6a6; }
+    #hamburger { display: none; background: none; border: 1px solid var(--pico-muted-border-color); border-radius: 6px; font-size: 1.3em; cursor: pointer; padding: 0.15em 0.45em; color: var(--pico-contrast); line-height: 1; }
+    @media (max-width: 768px) {
+      #hamburger { display: inline-block; }
+      #nav-links { display: none; flex-direction: column; width: 100%; gap: 0 !important; }
+      #nav-links.open { display: flex; }
+      #nav-links li { width: 100%; }
+      #nav-links li a { display: block; padding: 0.5em 0; }
+      nav.container { flex-wrap: wrap; }
+    }
+    #notif-btn { position: relative; display: inline-block; }
+    #notif-badge { display: none; position: absolute; top: -6px; right: -8px; background: #e53935; color: #fff; border-radius: 50%; font-size: 0.6em; padding: 1px 4px; min-width: 14px; text-align: center; line-height: 1.4; }
+    #notif-panel { display: none; position: fixed; top: 56px; right: 10px; z-index: 9999; background: var(--pico-card-background-color); border: 1px solid var(--pico-muted-border-color); border-radius: 10px; padding: 0.8em; width: 300px; max-width: 95vw; box-shadow: 0 4px 20px rgba(0,0,0,0.18); }
+    #notif-panel.open { display: block; }
+    .notif-item { padding: 0.4em 0; border-bottom: 1px solid var(--pico-muted-border-color); font-size: 0.84em; }
+    .notif-item:last-child { border-bottom: none; }
+    .notif-time { font-size: 0.75em; color: var(--pico-muted-color); }
+    /* 배지 토스트 */
+    #badge-toast { display:none; position:fixed; bottom:24px; right:16px; z-index:9999;
+      background:linear-gradient(135deg,#f59e0b,#d97706); color:#fff;
+      border-radius:12px; padding:1em 1.4em; box-shadow:0 4px 16px rgba(0,0,0,.25);
+      font-size:0.95em; max-width:280px; }
+    #badge-toast.show { display:block; animation: slideIn .4s ease; }
+    @keyframes slideIn { from{transform:translateY(40px);opacity:0} to{transform:translateY(0);opacity:1} }
+  </style>
+  {% block head %}{% endblock %}
+</head>
+<body>
+  <nav class="container">
+    <ul>
+      <li><a href="{{ base_path }}/" class="brand">ChoreSync <span id="sse-indicator" title="실시간 연결"></span></a></li>
+    </ul>
+    <button id="hamburger" onclick="toggleNav()" aria-label="메뉴">&#9776;</button>
+    <ul id="nav-links">
+      <li><a href="{{ base_path }}/">{{ t("nav.dashboard") }}</a></li>
+      <li><a href="{{ base_path }}/tasks">{{ t("nav.tasks") }}</a></li>
+      <li><a href="{{ base_path }}/calendar">{{ t("nav.calendar") }}</a></li>
+      <li><a href="{{ base_path }}/quests">{{ t("nav.quests") }}</a></li>
+      <li><a href="{{ base_path }}/wishes">{{ t("nav.wishes") }}</a></li>
+      <li><a href="{{ base_path }}/stats">{{ t("nav.stats") }}</a></li>
+      <li><a href="{{ base_path }}/devices">{{ t("nav.iot") }}</a></li>
+      <li><a href="{{ base_path }}/marketplace">{{ t("nav.marketplace") }}</a></li>
+      <li><a href="{{ base_path }}/ha">{{ t("nav.ha") }}</a></li>
+      <li><a href="{{ base_path }}/members">{{ t("nav.members") }}</a></li>
+      <li><a href="{{ base_path }}/guide">{{ t("nav.guide") }}</a></li>
+      <li>
+        <a href="#" onclick="toggleNotifCenter();return false;" id="notif-btn" title="{{ t('nav.notifications') }}">
+          &#128276;<span id="notif-badge">0</span>
+        </a>
+      </li>
+      <li><a href="#" onclick="document.getElementById('theme-picker').showModal();return false;" id="theme-btn" title="{{ t('nav.theme') }}">🎨</a></li>
+      <li><a href="#" onclick="toggleLang();return false;" id="lang-btn" title="{{ t('nav.lang_toggle') }}">🌐</a></li>
+      <li><a href="#" onclick="logout()">{{ t("nav.logout") }}</a></li>
+    </ul>
+  </nav>
+
+  <!-- 알림 패널 -->
+  <div id="notif-panel">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5em">
+      <strong style="font-size:0.9em">&#128276; {{ t("nav.notifications") }}</strong>
+      <button onclick="clearNotifs()" class="outline" style="font-size:0.75em;padding:0.2em 0.6em;margin:0">{{ t("common.all") }}</button>
+    </div>
+    <div id="notif-list" style="max-height:280px;overflow-y:auto">
+      <p id="notif-empty" style="color:var(--pico-muted-color);margin:0;text-align:center;font-size:0.85em">-</p>
+    </div>
+  </div>
+
+  <!-- 배지 토스트 -->
+  <div id="badge-toast"></div>
+
+  <main class="container">
+    <div id="flash"></div>
+    {% block content %}{% endblock %}
+  </main>
+
+  <!-- 테마 피커 모달 -->
+  <dialog id="theme-picker">
+    <article style="max-width:360px">
+      <header><h3 style="margin:0">{{ t("nav.theme") }}</h3></header>
+      <div class="theme-grid">
+        <button class="theme-btn" onclick="applyTheme('default')"><div class="theme-dot" style="background:#3874cb"></div>기본</button>
+        <button class="theme-btn" onclick="applyTheme('ocean')"><div class="theme-dot" style="background:#0077b6"></div>오션</button>
+        <button class="theme-btn" onclick="applyTheme('forest')"><div class="theme-dot" style="background:#2d6a4f"></div>포레스트</button>
+        <button class="theme-btn" onclick="applyTheme('sunset')"><div class="theme-dot" style="background:#e76f51"></div>선셋</button>
+        <button class="theme-btn" onclick="applyTheme('purple')"><div class="theme-dot" style="background:#7b2d8b"></div>퍼플</button>
+        <button class="theme-btn" onclick="applyTheme('rose')"><div class="theme-dot" style="background:#e63e7c"></div>로즈</button>
+        <button class="theme-btn" onclick="applyTheme('nord')"><div class="theme-dot" style="background:#5e81ac"></div>노드</button>
+        <button class="theme-btn" onclick="applyTheme('solarized')"><div class="theme-dot" style="background:#268bd2"></div>솔라</button>
+        <button class="theme-btn" onclick="applyTheme('midnight')"><div class="theme-dot" style="background:#4fc3f7"></div>미드나잇</button>
+        <button class="theme-btn" onclick="applyTheme('sand')"><div class="theme-dot" style="background:#b5651d"></div>샌드</button>
+      </div>
+      <div style="margin-top:1em;display:flex;align-items:center;gap:1em">
+        <label style="margin:0;display:flex;align-items:center;gap:0.5em;cursor:pointer">
+          <input type="checkbox" id="dark-toggle" onchange="toggleDark(this.checked)" style="margin:0"> 다크 모드
+        </label>
+      </div>
+      <footer><button onclick="document.getElementById('theme-picker').close()">{{ t("common.close") }}</button></footer>
+    </article>
+  </dialog>
+
+  <script>
+    function getToken() { return localStorage.getItem("token"); }
+    function setToken(t) { localStorage.setItem("token", t); }
+    function logout() { localStorage.removeItem("token"); location.href = window.BASE + "/login"; }
+
+    // 테마 초기화
+    (function() {
+      var cs = localStorage.getItem("colorScheme") || "default";
+      var dark = localStorage.getItem("theme") === "dark";
+      document.documentElement.setAttribute("data-cs", cs);
+      document.documentElement.setAttribute("data-theme", dark ? "dark" : "light");
+      var dtoggle = document.getElementById("dark-toggle");
+      if (dtoggle) dtoggle.checked = dark;
+      updateThemeBtns(cs);
+    })();
+
+    function applyTheme(cs) {
+      document.documentElement.setAttribute("data-cs", cs);
+      localStorage.setItem("colorScheme", cs);
+      updateThemeBtns(cs);
+    }
+    function toggleDark(isDark) {
+      var mode = isDark ? "dark" : "light";
+      document.documentElement.setAttribute("data-theme", mode);
+      localStorage.setItem("theme", mode);
+    }
+    function updateThemeBtns(active) {
+      document.querySelectorAll(".theme-btn").forEach(function(btn) {
+        btn.classList.toggle("active", btn.getAttribute("onclick") === "applyTheme('" + active + "')");
+      });
+    }
+    function toggleNav() { document.getElementById("nav-links").classList.toggle("open"); }
+
+    // 언어 토글
+    function toggleLang() {
+      var cur = document.documentElement.lang || "ko";
+      var next = cur === "ko" ? "en" : "ko";
+      fetch(window.BASE + "/api/auth/language?lang=" + next, {
+        method: "POST",
+        headers: {"Authorization": "Bearer " + getToken()}
+      }).then(function() { location.reload(); }).catch(function() {});
+    }
+
+    if (!getToken() && location.pathname !== (window.BASE + "/login") && !location.pathname.startsWith(window.BASE + "/invite") && !location.pathname.startsWith(window.BASE + "/guide")) {
+      location.href = window.BASE + "/login";
+    }
+
+    // HTMX: 인증 헤더 + ingress 경로 프리픽스
+    document.body.addEventListener("htmx:configRequest", function(e) {
+      var token = getToken();
+      if (token) e.detail.headers["Authorization"] = "Bearer " + token;
+      if (window.BASE && e.detail.path && e.detail.path.startsWith("/") && !e.detail.path.startsWith(window.BASE)) {
+        e.detail.path = window.BASE + e.detail.path;
+      }
+    });
+
+    function flash(msg, type) {
+      type = type || "success";
+      var el = document.getElementById("flash");
+      el.innerHTML = '<div class="flash flash-' + type + '">' + msg + '</div>';
+      setTimeout(function() { el.innerHTML = ""; }, 3000);
+    }
+
+    // 배지 토스트
+    function showBadgeToast(badge) {
+      var el = document.getElementById("badge-toast");
+      el.innerHTML = badge.icon + " <strong>" + badge.name + "</strong> 획득!<br><small>" + (badge.tier || "") + "</small>";
+      el.classList.add("show");
+      setTimeout(function() { el.classList.remove("show"); }, 4000);
+    }
+
+    // 알림 센터
+    function _getNotifs() { try { return JSON.parse(localStorage.getItem("notifs") || "[]"); } catch(e) { return []; } }
+    function _saveNotifs(arr) { localStorage.setItem("notifs", JSON.stringify(arr)); }
+    function addNotif(msg, type) {
+      var notifs = _getNotifs();
+      notifs.unshift({ msg: msg, type: type || "info", time: new Date().toLocaleTimeString() });
+      if (notifs.length > 20) notifs = notifs.slice(0, 20);
+      _saveNotifs(notifs);
+      updateNotifBadge();
+      renderNotifList();
+    }
+    function updateNotifBadge() {
+      var unread = parseInt(localStorage.getItem("notifUnread") || "0");
+      var badge = document.getElementById("notif-badge");
+      if (!badge) return;
+      if (unread > 0) { badge.style.display = ""; badge.textContent = unread > 9 ? "9+" : unread; }
+      else { badge.style.display = "none"; }
+    }
+    function renderNotifList() {
+      var el = document.getElementById("notif-list");
+      var empty = document.getElementById("notif-empty");
+      if (!el) return;
+      var notifs = _getNotifs();
+      if (notifs.length === 0) { if (empty) empty.style.display = ""; el.querySelectorAll(".notif-item").forEach(function(n){n.remove();}); return; }
+      if (empty) empty.style.display = "none";
+      el.querySelectorAll(".notif-item").forEach(function(n){n.remove();});
+      notifs.forEach(function(n) {
+        var div = document.createElement("div");
+        div.className = "notif-item";
+        div.innerHTML = '<span>' + n.msg + '</span><span class="notif-time"> · ' + n.time + '</span>';
+        el.appendChild(div);
+      });
+    }
+    function toggleNotifCenter() {
+      var panel = document.getElementById("notif-panel");
+      if (!panel) return;
+      var isOpen = panel.classList.toggle("open");
+      if (isOpen) { localStorage.setItem("notifUnread","0"); updateNotifBadge(); renderNotifList(); }
+    }
+    function clearNotifs() { _saveNotifs([]); localStorage.setItem("notifUnread","0"); updateNotifBadge(); renderNotifList(); }
+    document.addEventListener("click", function(e) {
+      var panel = document.getElementById("notif-panel");
+      var btn = document.getElementById("notif-btn");
+      if (panel && panel.classList.contains("open") && !panel.contains(e.target) && btn && !btn.contains(e.target)) panel.classList.remove("open");
+    });
+    updateNotifBadge();
+
+    // SSE
+    var _sseSource = null;
+    function connectSSE(familyId) {
+      if (_sseSource) return;
+      var token = getToken();
+      if (!token || !familyId) return;
+      _sseSource = new EventSource(window.BASE + "/api/sse/" + familyId + "/events?token=" + token);
+      _sseSource.addEventListener("connected", function() { var ind=document.getElementById("sse-indicator"); if(ind) ind.className="connected"; });
+      _sseSource.onmessage = function(e) {
+        try {
+          var data = JSON.parse(e.data);
+          var msg = "";
+          if (data.type === "task_created") { msg = "IoT: 새 할일 — " + data.name; flash(msg); }
+          else if (data.type === "task_completed") { msg = "✅ " + (data.member||"") + " " + (data.name||"") + " 완료!"; flash(msg); }
+          else if (data.type === "task_assigned") { msg = "📋 " + (data.name||"") + " 담당 지정됨"; flash(msg); }
+          else if (data.type === "quest_approved") { msg = "🏆 퀘스트 승인: " + (data.name||""); flash(msg); }
+          else if (data.type === "badge_earned") { showBadgeToast(data.badge); msg = "🏅 배지: " + data.badge.name; }
+          else if (data.type === "family_levelup") { msg = "🎉 레벨업! Lv." + data.level + " " + (data.level_name||""); if(typeof loadFamilyLevel==="function") loadFamilyLevel(_currentFamilyId||currentFamilyId); }
+          else if (data.type === "task_delegated") { msg = "📋 할일 위임 요청: " + (data.task_name||""); }
+          else if (data.type === "delegation_accepted") { msg = "✅ 위임 수락됨: " + (data.task_name||""); }
+          else if (data.type === "delegation_rejected") { msg = "❌ 위임 거절됨: " + (data.task_name||""); }
+          if (msg) { var unread=parseInt(localStorage.getItem("notifUnread")||"0")+1; localStorage.setItem("notifUnread",unread); addNotif(msg); }
+        } catch(err) {}
+      };
+      _sseSource.onerror = function() { var ind=document.getElementById("sse-indicator"); if(ind) ind.className=""; };
+    }
+
+    fetch(window.BASE + "/api/families", {headers:{"Authorization":"Bearer "+getToken()}})
+      .then(function(r){return r.json();}).then(function(fs){if(fs&&fs.length) connectSSE(fs[0].id);}).catch(function(){});
+
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register(window.BASE + "/static/sw.js").catch(function(){});
+    }
+
+    function apiFetch(url, opts) {
+      opts = opts || {};
+      var token = getToken();
+      if (url.startsWith("/")) url = window.BASE + url;
+      return fetch(url, Object.assign({}, opts, {
+        headers: Object.assign({"Content-Type":"application/json","Authorization":"Bearer "+token}, opts.headers||{})
+      })).then(function(r) {
+        if (!r.ok) return r.json().catch(function(){return{};}).then(function(e){throw new Error(e.detail||r.statusText);});
+        return r.status === 204 ? null : r.json();
+      });
+    }
+
+    async function requestPushPermission() {
+      if (!('serviceWorker' in navigator)||!('PushManager' in window)) return;
+      try {
+        var perm = await Notification.requestPermission();
+        if (perm!=='granted') return;
+        var keyRes = await fetch(window.BASE+'/api/notify/vapid-key',{headers:{'Authorization':'Bearer '+getToken()}});
+        if (!keyRes.ok) return;
+        var keyData = await keyRes.json();
+        var reg = await navigator.serviceWorker.ready;
+        var existing = await reg.pushManager.getSubscription();
+        if (existing) return;
+        var sub = await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:_urlB64ToUint8(keyData.public_key)});
+        await fetch(window.BASE+'/api/notify/subscribe',{method:'POST',headers:{'Authorization':'Bearer '+getToken(),'Content-Type':'application/json'},body:JSON.stringify({endpoint:sub.endpoint,keys:{p256dh:btoa(String.fromCharCode(...new Uint8Array(sub.getKey('p256dh')))),auth:btoa(String.fromCharCode(...new Uint8Array(sub.getKey('auth'))))}})});
+        flash('웹 푸시 알림이 활성화되었습니다');
+      } catch(e) { console.warn('Push subscribe failed:',e); }
+    }
+    function _urlB64ToUint8(b64) {
+      var padding='='.repeat((4-b64.length%4)%4);
+      var base64=(b64+padding).replace(/-/g,'+').replace(/_/g,'/');
+      var rawData=window.atob(base64);
+      return Uint8Array.from([...rawData].map(function(c){return c.charCodeAt(0);}));
+    }
+    window.T = {
+      copied: "{{ t('js.copied') }}",
+      confirm_delete: "{{ t('js.confirm_delete') }}",
+      iot_new_task: "{{ t('js.iot_new_task') }}",
+      completed_msg: "{{ t('js.completed_msg') }}",
+      badge_earned: "{{ t('js.badge_earned') }}",
+      live_connected: "{{ t('js.live_connected') }}",
+      enter_text: "{{ t('js.enter_text') }}",
+      invite_code_label: "{{ t('js.invite_code_label') }}"
+    };
+  </script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+{% block title %}{{ t('quests.title') }} — ChoreSync{% endblock %}
+{% block head %}
+<style>
+  .quest-card { border: 1px solid var(--pico-muted-border-color); border-radius: 8px; padding: 1em; margin-bottom: 0.75em; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 0.78em; font-weight: 600; margin-left: 4px; }
+  .badge-open { background: #e3f2fd; color: #1565c0; }
+  .badge-accepted { background: #fff3e0; color: #e65100; }
+  .badge-pendingconfirm { background: #fff8e1; color: #f57f17; }
+  .badge-completed { background: #e8f5e9; color: #2e7d32; }
+  .badge-cancelled { background: #fce4ec; color: #c62828; }
+</style>
+{% endblock %}
+{% block content %}
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1em">
+  <h2 style="margin:0">{{ t('quests.title') }}</h2>
+  <button onclick="document.getElementById('create-modal').showModal()">+ {{ t('quests.add') }}</button>
+</div>
+<div id="quests-container"><article aria-busy="true">로딩 중...</article></div>
+<dialog id="create-modal">
+  <article>
+    <header><h3>{{ t('quests.new_quest') }}</h3></header>
+    <label>{{ t('quests.title_label') }}<input type="text" id="q-title" required maxlength="100"></label>
+    <label>{{ t('quests.desc_label') }}<textarea id="q-desc" rows="2"></textarea></label>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1em">
+      <label>{{ t('quests.points_label') }}<input type="number" id="q-points" value="10" min="0" step="0.5"></label>
+      <label>{{ t('quests.deadline') }}<input type="datetime-local" id="q-deadline"></label>
+    </div>
+    <footer>
+      <button class="secondary" onclick="document.getElementById('create-modal').close()">{{ t('common.cancel') }}</button>
+      <button onclick="createQuest()">{{ t('common.add') }}</button>
+    </footer>
+  </article>
+</dialog>
+{% endblock %}
+{% block scripts %}
+<script>
+var currentFamilyId = null;
+var statusLabel = {Open:"공개", Accepted:"수락됨", PendingConfirm:"확인대기", Completed:"완료", Cancelled:"취소"};
+
+async function apiFetch(url, opts) {
+  opts = opts || {};
+  var res = await fetch(url, Object.assign({}, opts, {
+    headers: Object.assign({"Content-Type": "application/json", "Authorization": "Bearer " + getToken()}, opts.headers || {})
+  }));
+  if (!res.ok) { var e = await res.json().catch(function(){return {};}); throw new Error(e.detail || res.statusText); }
+  return res.status === 204 ? null : res.json();
+}
+
+async function init() {
+  var families = await apiFetch("/api/families").catch(function(){return [];});
+  if (!families.length) return;
+  currentFamilyId = families[0].id;
+  loadQuests();
+}
+
+async function loadQuests() {
+  var quests = await apiFetch("/api/families/" + currentFamilyId + "/quests");
+  var c = document.getElementById("quests-container");
+  if (!quests.length) { c.innerHTML = "<p>퀘스트가 없습니다.</p>"; return; }
+  c.innerHTML = quests.map(function(q) {
+    var sl = q.status.toLowerCase().replace("_", "");
+    return "<div class='quest-card'>" +
+      "<div style='display:flex;justify-content:space-between;align-items:flex-start'>"+
+      "<div><strong>" + q.title + "</strong><span class='badge badge-" + sl + "'>" + (statusLabel[q.status] || q.status) + "</span></div>"+
+      "<div style='display:flex;gap:0.4em'>" +
+      (q.status === "Open" ? "<button class='outline' style='padding:4px 10px;font-size:0.85em' onclick=\"questAction(" + q.id + ", 'accept')\">수락</button>" : "") +
+      (q.status === "Accepted" ? "<button class='outline' style='padding:4px 10px;font-size:0.85em' onclick=\"questAction(" + q.id + ", 'complete')\">완료요청</button>" : "") +
+      (q.status === "PendingConfirm" ? "<button style='padding:4px 10px;font-size:0.85em' onclick=\"questAction(" + q.id + ", 'confirm')\">확인</button>" : "") +
+      (q.status !== "Completed" && q.status !== "Cancelled" ? "<button class='secondary outline' style='padding:4px 10px;font-size:0.85em' onclick=\"questAction(" + q.id + ", 'cancel')\">취소</button>" : "") +
+      "</div></div>" +
+      "<div style='font-size:0.85em;color:#666;margin-top:6px'>보상: " + q.reward_points + "점" + (q.deadline ? " · 마감: " + q.deadline.slice(0,16) : "") + "</div>" +
+      (q.description ? "<div style='font-size:0.85em;margin-top:4px'>" + q.description + "</div>" : "") +
+      "</div>";
+  }).join("");
+}
+
+async function createQuest() {
+  var body = {
+    title: document.getElementById("q-title").value,
+    description: document.getElementById("q-desc").value || null,
+    reward_points: parseFloat(document.getElementById("q-points").value),
+    deadline: document.getElementById("q-deadline").value ? new Date(document.getElementById("q-deadline").value).toISOString() : null
+  };
+  try {
+    await apiFetch("/api/families/" + currentFamilyId + "/quests", {method:"POST", body:JSON.stringify(body)});
+    document.getElementById("create-modal").close();
+    flash("퀘스트가 추가되었습니다"); loadQuests();
+  } catch(e) { flash(e.message, "error"); }
+}
+
+async function questAction(id, action) {
+  try {
+    await apiFetch("/api/families/" + currentFamilyId + "/quests/" + id + "/" + action, {method:"POST", body:"{}"});
+    flash("완료"); loadQuests();
+  } catch(e) { flash(e.message, "error"); }
+}
+
+init();
+</script>
+{% endblock %}

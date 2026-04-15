@@ -1,0 +1,267 @@
+{% extends "base.html" %}
+{% block title %}{{ t("guide.title") }}{% endblock %}
+
+{% block head %}
+<style>
+  .guide-wrap { display: flex; gap: 2em; align-items: flex-start; }
+  .guide-toc {
+    width: 220px; flex-shrink: 0; position: sticky; top: 1em;
+    background: var(--pico-card-background-color);
+    border: 1px solid var(--pico-muted-border-color);
+    border-radius: 10px; padding: 1em; font-size: 0.88em;
+  }
+  .guide-toc h4 { margin: 0 0 0.7em; font-size: 0.95em; color: var(--pico-primary); }
+  .guide-toc ol { margin: 0; padding-left: 1.2em; }
+  .guide-toc li { margin-bottom: 0.35em; }
+  .guide-toc a { text-decoration: none; color: var(--pico-muted-color); }
+  .guide-toc a:hover { color: var(--pico-primary); }
+  .guide-content { flex: 1; min-width: 0; }
+  .guide-section { margin-bottom: 3em; scroll-margin-top: 1em; }
+  .guide-section h2 { border-bottom: 2px solid var(--pico-primary); padding-bottom: 0.3em; margin-bottom: 1em; }
+  .guide-section h3 { margin-top: 1.5em; color: var(--pico-contrast); }
+  .guide-img {
+    max-width: 100%; border-radius: 10px;
+    box-shadow: 0 3px 14px rgba(0,0,0,.15);
+    margin: 0.8em 0 1.2em; display: block;
+  }
+  .guide-tip {
+    background: var(--pico-ins-color, #e6f4ea); border-left: 4px solid var(--pico-primary);
+    border-radius: 0 8px 8px 0; padding: 0.75em 1em; margin: 1em 0; font-size: 0.93em;
+  }
+  [data-theme="dark"] .guide-tip { background: rgba(56,116,203,.15); }
+  .guide-steps { padding-left: 1.4em; }
+  .guide-steps li { margin-bottom: 0.5em; }
+  .badge-chip {
+    display: inline-block; font-size: 0.8em; background: var(--pico-primary);
+    color: #fff; border-radius: 12px; padding: 0.15em 0.6em; margin: 0.1em;
+  }
+  @media (max-width: 768px) {
+    .guide-wrap { flex-direction: column; }
+    .guide-toc { width: 100%; position: static; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<h1>📖 {{ t("guide.title") }}</h1>
+<p style="color:var(--pico-muted-color); margin-bottom:1.5em">{{ t("guide.subtitle") }}</p>
+
+<div class="guide-wrap">
+  <nav class="guide-toc">
+    <h4>📋 {{ t("guide.toc_title") }}</h4>
+    <ol>
+      <li><a href="#start">{{ t("guide.toc_start") }}</a></li>
+      <li><a href="#dashboard">{{ t("guide.toc_dashboard") }}</a></li>
+      <li><a href="#tasks">{{ t("guide.toc_tasks") }}</a></li>
+      <li><a href="#quests">{{ t("guide.toc_quests") }}</a></li>
+      <li><a href="#wishes">{{ t("guide.toc_wishes") }}</a></li>
+      <li><a href="#shop">{{ t("guide.toc_shop") }}</a></li>
+      <li><a href="#stats">{{ t("guide.toc_stats") }}</a></li>
+      <li><a href="#calendar">{{ t("guide.toc_calendar") }}</a></li>
+      <li><a href="#badges">{{ t("guide.toc_badges") }}</a></li>
+      <li><a href="#members">{{ t("guide.toc_members") }}</a></li>
+      <li><a href="#iot">{{ t("guide.toc_iot") }}</a></li>
+      <li><a href="#ha">{{ t("guide.toc_ha") }}</a></li>
+      <li><a href="#marketplace">{{ t("guide.toc_marketplace") }}</a></li>
+    </ol>
+  </nav>
+
+  <div class="guide-content">
+
+    <section class="guide-section" id="start">
+      <h2>{{ t("guide.s1_title") }}</h2>
+      <img src="/static/guide/01_login.png" class="guide-img" alt="{{ t('guide.s1_alt_login') }}">
+      <h3>{{ t("guide.s1_h3_login") }}</h3>
+      <ol class="guide-steps">
+        <li>{{ t("guide.s1_login_li1") | safe }}</li>
+        <li>{{ t("guide.s1_login_li2") | safe }}</li>
+        <li>{{ t("guide.s1_login_li3") }}</li>
+        <li>{{ t("guide.s1_login_li4") }}</li>
+      </ol>
+      <h3>{{ t("guide.s1_h3_family") }}</h3>
+      <ol class="guide-steps">
+        <li>{{ t("guide.s1_family_li1") | safe }}</li>
+        <li>{{ t("guide.s1_family_li2") | safe }}</li>
+        <li>{{ t("guide.s1_family_li3") | safe }}</li>
+      </ol>
+      <div class="guide-tip">{{ t("guide.s1_tip") }}</div>
+    </section>
+
+    <section class="guide-section" id="dashboard">
+      <h2>{{ t("guide.s2_title") }}</h2>
+      <img src="/static/guide/02_dashboard.png" class="guide-img" alt="{{ t('guide.s2_alt') }}">
+      <p>{{ t("guide.s2_desc") }}</p>
+      <ul>
+        <li>{{ t("guide.s2_li_family") | safe }}</li>
+        <li>{{ t("guide.s2_li_tts") | safe }}</li>
+        <li>{{ t("guide.s2_li_sse") | safe }}</li>
+      </ul>
+      <div class="guide-tip">{{ t("guide.s2_tip") }}</div>
+    </section>
+
+    <section class="guide-section" id="tasks">
+      <h2>{{ t("guide.s3_title") }}</h2>
+      <img src="/static/guide/03_tasks.png" class="guide-img" alt="{{ t('guide.s3_alt') }}">
+      <h3>{{ t("guide.s3_h3_add") }}</h3>
+      <ol class="guide-steps">
+        <li>{{ t("guide.s3_add_li1") | safe }}</li>
+        <li>{{ t("guide.s3_add_li2") }}</li>
+        <li>{{ t("guide.s3_add_li3") }}</li>
+      </ol>
+      <h3>{{ t("guide.s3_h3_template") }}</h3>
+      <p>{{ t("guide.s3_template_p") | safe }}</p>
+      <h3>{{ t("guide.s3_h3_complete") }}</h3>
+      <ol class="guide-steps">
+        <li>{{ t("guide.s3_complete_li1") | safe }}</li>
+        <li>{{ t("guide.s3_complete_li2") }}</li>
+        <li>{{ t("guide.s3_complete_li3") }}</li>
+      </ol>
+      <div class="guide-tip">{{ t("guide.s3_tip") }}</div>
+    </section>
+
+    <section class="guide-section" id="quests">
+      <h2>{{ t("guide.s4_title") }}</h2>
+      <img src="/static/guide/04_quests.png" class="guide-img" alt="{{ t('guide.s4_alt') }}">
+      <p>{{ t("guide.s4_desc") }}</p>
+      <ol class="guide-steps">
+        <li>{{ t("guide.s4_li1") | safe }}</li>
+        <li>{{ t("guide.s4_li2") }}</li>
+        <li>{{ t("guide.s4_li3") | safe }}</li>
+      </ol>
+      <div class="guide-tip">{{ t("guide.s4_tip") }}</div>
+    </section>
+
+    <section class="guide-section" id="wishes">
+      <h2>{{ t("guide.s5_title") }}</h2>
+      <img src="/static/guide/05_wishes.png" class="guide-img" alt="{{ t('guide.s5_alt') }}">
+      <p>{{ t("guide.s5_desc") }}</p>
+      <ol class="guide-steps">
+        <li>{{ t("guide.s5_li1") | safe }}</li>
+        <li>{{ t("guide.s5_li2") }}</li>
+        <li>{{ t("guide.s5_li3") | safe }}</li>
+      </ol>
+    </section>
+
+    <section class="guide-section" id="shop">
+      <h2>{{ t("guide.s6_title") }}</h2>
+      <img src="/static/guide/06_shop.png" class="guide-img" alt="{{ t('guide.s6_alt') }}">
+      <p>{{ t("guide.s6_desc") }}</p>
+      <h3>{{ t("guide.s6_h3_add") }}</h3>
+      <ol class="guide-steps">
+        <li>{{ t("guide.s6_add_li1") | safe }}</li>
+        <li>{{ t("guide.s6_add_li2") }}</li>
+      </ol>
+      <h3>{{ t("guide.s6_h3_buy") }}</h3>
+      <ol class="guide-steps">
+        <li>{{ t("guide.s6_buy_li1") | safe }}</li>
+        <li>{{ t("guide.s6_buy_li2") }}</li>
+      </ol>
+      <div class="guide-tip">{{ t("guide.s6_tip") }}</div>
+    </section>
+
+    <section class="guide-section" id="stats">
+      <h2>{{ t("guide.s7_title") }}</h2>
+      <img src="/static/guide/07a_stats_heatmap.png" class="guide-img" alt="{{ t('guide.s7_alt_heatmap') }}">
+      <p>{{ t("guide.s7_desc") }}</p>
+      <ul>
+        <li>{{ t("guide.s7_li_heatmap") | safe }}</li>
+        <li>{{ t("guide.s7_li_yearly") | safe }}</li>
+        <li>{{ t("guide.s7_li_weekly") | safe }}</li>
+        <li>{{ t("guide.s7_li_category") | safe }}</li>
+        <li>{{ t("guide.s7_li_ranking") | safe }}</li>
+      </ul>
+      <img src="/static/guide/07b_stats_yearly.png" class="guide-img" alt="{{ t('guide.s7_alt_yearly') }}">
+      <img src="/static/guide/07c_stats_ranking.png" class="guide-img" alt="{{ t('guide.s7_alt_ranking') }}">
+      <div class="guide-tip">{{ t("guide.s7_tip") }}</div>
+    </section>
+
+    <section class="guide-section" id="calendar">
+      <h2>{{ t("guide.s8_title") }}</h2>
+      <img src="/static/guide/08_calendar.png" class="guide-img" alt="{{ t('guide.s8_alt') }}">
+      <p>{{ t("guide.s8_desc") }}</p>
+      <ul>
+        <li>{{ t("guide.s8_li_view") | safe }}</li>
+        <li>{{ t("guide.s8_li_drag") | safe }}</li>
+        <li>{{ t("guide.s8_li_click") }}</li>
+      </ul>
+    </section>
+
+    <section class="guide-section" id="badges">
+      <h2>{{ t("guide.s9_title") }}</h2>
+      <img src="/static/guide/09_badges.png" class="guide-img" alt="{{ t('guide.s9_alt') }}">
+      <p>{{ t("guide.s9_desc") }}</p>
+      <div style="margin:0.8em 0">
+        <span class="badge-chip">{{ t("guide.s9_b1") }}</span>
+        <span class="badge-chip">{{ t("guide.s9_b2") }}</span>
+        <span class="badge-chip">{{ t("guide.s9_b3") }}</span>
+        <span class="badge-chip">{{ t("guide.s9_b4") }}</span>
+        <span class="badge-chip">{{ t("guide.s9_b5") }}</span>
+        <span class="badge-chip">{{ t("guide.s9_b6") }}</span>
+        <span class="badge-chip">{{ t("guide.s9_b7") }}</span>
+        <span class="badge-chip">{{ t("guide.s9_b8") }}</span>
+        <span class="badge-chip">{{ t("guide.s9_b9") }}</span>
+        <span class="badge-chip">{{ t("guide.s9_b10") }}</span>
+        <span class="badge-chip">{{ t("guide.s9_b11") }}</span>
+        <span class="badge-chip">{{ t("guide.s9_b12") }}</span>
+      </div>
+      <h3>{{ t("guide.s9_h3_streak") }}</h3>
+      <p>{{ t("guide.s9_streak_p") }}</p>
+      <div class="guide-tip">{{ t("guide.s9_tip") }}</div>
+    </section>
+
+    <section class="guide-section" id="members">
+      <h2>{{ t("guide.s10_title") }}</h2>
+      <img src="/static/guide/10_members.png" class="guide-img" alt="{{ t('guide.s10_alt') }}">
+      <h3>{{ t("guide.s10_h3_invite") }}</h3>
+      <ol class="guide-steps">
+        <li>{{ t("guide.s10_invite_li1") | safe }}</li>
+        <li>{{ t("guide.s10_invite_li2") }}</li>
+        <li>{{ t("guide.s10_invite_li3") | safe }}</li>
+      </ol>
+      <h3>{{ t("guide.s10_h3_role") }}</h3>
+      <p>{{ t("guide.s10_role_p") }}</p>
+    </section>
+
+    <section class="guide-section" id="iot">
+      <h2>{{ t("guide.s11_title") }}</h2>
+      <img src="/static/guide/11_devices.png" class="guide-img" alt="{{ t('guide.s11_alt') }}">
+      <p>{{ t("guide.s11_desc") }}</p>
+      <ol class="guide-steps">
+        <li>{{ t("guide.s11_li1") | safe }}</li>
+        <li>{{ t("guide.s11_li2") }}</li>
+        <li>{{ t("guide.s11_li3") }}</li>
+      </ol>
+      <div class="guide-tip">{{ t("guide.s11_tip") }}</div>
+    </section>
+
+    <section class="guide-section" id="ha">
+      <h2>{{ t("guide.s12_title") }}</h2>
+      <img src="/static/guide/12_ha.png" class="guide-img" alt="{{ t('guide.s12_alt') }}">
+      <p>{{ t("guide.s12_desc") }}</p>
+      <ul>
+        <li>{{ t("guide.s12_li1") }}</li>
+        <li>{{ t("guide.s12_li2") }}</li>
+        <li>{{ t("guide.s12_li3") }}</li>
+      </ul>
+    </section>
+
+    <section class="guide-section" id="marketplace">
+      <h2>{{ t("guide.s13_title") }}</h2>
+      <img src="/static/guide/13_marketplace.png" class="guide-img" alt="{{ t('guide.s13_alt') }}">
+      <p>{{ t("guide.s13_desc") }}</p>
+      <ol class="guide-steps">
+        <li>{{ t("guide.s13_li1") }}</li>
+        <li>{{ t("guide.s13_li2") | safe }}</li>
+        <li>{{ t("guide.s13_li3") | safe }}</li>
+      </ol>
+    </section>
+
+    <hr>
+    <p style="text-align:center; color:var(--pico-muted-color); font-size:0.88em">
+      ChoreSync v0.8.0 &nbsp;|&nbsp;
+      <a href="/">{{ t("guide.footer_link") }}</a>
+    </p>
+
+  </div>
+</div>
+{% endblock %}

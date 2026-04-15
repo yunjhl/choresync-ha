@@ -1,0 +1,521 @@
+{% extends "base.html" %}
+{% block title %}{{ t('marketplace.title') }} — ChoreSync{% endblock %}
+{% block head %}
+<style>
+  /* ── 가족규모 탭바 ── */
+  .size-tabs { display:flex; gap:0.4em; flex-wrap:wrap; margin-bottom:1.2em; }
+  .size-tab {
+    padding:0.3em 0.9em; border-radius:20px; border:1px solid var(--pico-muted-border-color);
+    background:var(--pico-card-background-color); cursor:pointer; font-size:0.88em;
+    transition:background 0.15s, color 0.15s;
+    color: var(--pico-contrast); /* Pico button 기본 흰색 override */
+  }
+  .size-tab.active { background:var(--pico-primary); color:#fff; border-color:var(--pico-primary); }
+  .size-tab-group { display:flex; gap:0.4em; flex-wrap:wrap; align-items:center; margin-top:0.3em; width:100%; }
+  .size-tab-label { font-size:0.8em; color:var(--pico-muted-color); font-weight:600; white-space:nowrap; }
+
+  /* ── 카테고리 accordion ── */
+  .cat-details { border:1px solid var(--pico-muted-border-color); border-radius:8px; margin-bottom:0.6em; overflow:hidden; }
+  .cat-summary {
+    padding:0.65em 1em; cursor:pointer; font-weight:600; font-size:0.95em;
+    background:var(--pico-card-background-color);
+    display:flex; justify-content:space-between; align-items:center; user-select:none;
+  }
+  .cat-summary:hover { background:var(--pico-card-sectioning-background-color); }
+  .cat-count { font-weight:400; color:var(--pico-muted-color); font-size:0.85em; }
+
+  /* ── 템플릿 행 ── */
+  .tmpl-row { border-top:1px solid var(--pico-muted-border-color); padding:0.55em 1em; cursor:pointer; transition:background 0.12s; }
+  .tmpl-row:hover { background:var(--pico-card-sectioning-background-color); }
+  .tmpl-main { display:flex; justify-content:space-between; align-items:center; gap:0.5em; }
+  .tmpl-left { display:flex; align-items:center; gap:0.5em; flex-wrap:wrap; flex:1; min-width:0; }
+  .tmpl-name { font-weight:500; font-size:0.92em; }
+  .tmpl-right { display:flex; align-items:center; gap:0.5em; flex-shrink:0; }
+  .tmpl-pts { font-size:0.8em; color:var(--pico-primary); font-weight:600; white-space:nowrap; }
+  .tmpl-min { font-size:0.8em; color:var(--pico-muted-color); white-space:nowrap; }
+
+  /* ── 배지 ── */
+  .badge { display:inline-block; padding:1px 7px; border-radius:10px; font-size:0.75em; font-weight:600; }
+  .badge-light   { background:#e0f7fa; color:#00796b; }
+  .badge-normal  { background:#fff3e0; color:#e65100; }
+  .badge-hard    { background:#fce4ec; color:#c62828; }
+  .badge-trigger { background:#ede7f6; color:#5e35b1; font-size:0.72em; }
+  .badge-adult   { background:#fce4ec; color:#b71c1c; font-size:0.72em; }
+  .badge-assist  { background:#e8f5e9; color:#2e7d32; font-size:0.72em; }
+  .badge-indep   { background:#e3f2fd; color:#1565c0; font-size:0.72em; }
+  .badge-age     { background:#f3e5f5; color:#6a1b9a; font-size:0.72em; }
+
+  /* ── 상세 패널 ── */
+  .tmpl-detail {
+    display:none; padding:0.5em 1em 0.7em 1em;
+    border-top:1px dashed var(--pico-muted-border-color);
+    background:var(--pico-card-sectioning-background-color); font-size:0.85em;
+  }
+  .tmpl-detail.open { display:block; }
+  .detail-desc { color:var(--pico-muted-color); margin-bottom:0.4em; }
+  .detail-meta { display:flex; gap:1em; flex-wrap:wrap; color:var(--pico-muted-color); font-size:0.9em; }
+
+  /* ── 버튼 ── */
+  .btn-imported { padding:3px 10px; font-size:0.8em; white-space:nowrap; background:#2e7d32; color:#fff; border:none; border-radius:6px; cursor:default; opacity:0.85; }
+  .btn-add { padding:3px 10px; font-size:0.8em; white-space:nowrap; border-radius:6px; cursor:pointer; }
+
+  /* ── 임포트 모달 ── */
+  #import-modal article { max-width:480px; margin:0 auto; }
+  .modal-row { display:grid; grid-template-columns:1fr 1fr; gap:0.8em; }
+  @media (max-width:480px) { .modal-row { grid-template-columns:1fr; } }
+</style>
+{% endblock %}
+{% block content %}
+
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.8em">
+  <h2 style="margin:0">{{ t('marketplace.title') }}</h2>
+  <button class="outline" style="font-size:0.85em" onclick="document.getElementById('submit-modal').showModal()">+ {{ t('marketplace.share') }}</button>
+</div>
+
+<!-- 가족규모 탭 -->
+<div class="size-tabs" id="size-tabs">
+  <button class="size-tab active" data-size="전체" onclick="selectSize(this)">전체</button>
+  <button class="size-tab" data-size="1인" onclick="selectSize(this)">1인</button>
+  <button class="size-tab" data-size="2인" onclick="selectSize(this)">2인</button>
+  <div class="size-tab-group">
+    <span class="size-tab-label">3인 가족:</span>
+    <button class="size-tab" data-size="3인_영유아" onclick="selectSize(this)">영유아(0~5세)</button>
+    <button class="size-tab" data-size="3인_초등" onclick="selectSize(this)">초등(6~12세)</button>
+    <button class="size-tab" data-size="3인_중고등" onclick="selectSize(this)">중고등(13~18세)</button>
+  </div>
+  <div class="size-tab-group">
+    <span class="size-tab-label">4인 가족:</span>
+    <button class="size-tab" data-size="4인_영유아" onclick="selectSize(this)">영유아(0~5세)</button>
+    <button class="size-tab" data-size="4인_초등" onclick="selectSize(this)">초등(6~12세)</button>
+    <button class="size-tab" data-size="4인_중고등" onclick="selectSize(this)">중고등(13~18세)</button>
+  </div>
+</div>
+
+<div id="market-list"><article aria-busy="true">로딩 중...</article></div>
+
+<!-- ── 임포트 모달 ── -->
+<dialog id="import-modal">
+  <article>
+    <header>
+      <button rel="prev" onclick="document.getElementById('import-modal').close()"></button>
+      <h3 id="import-modal-title">{{ t('marketplace.add_template') }}</h3>
+    </header>
+    <p id="import-modal-desc" style="font-size:0.85em;color:var(--pico-muted-color);margin:-0.5em 0 0.8em"></p>
+    <p id="import-modal-age" style="font-size:0.82em;color:#6a1b9a;margin:-0.3em 0 0.8em;display:none"></p>
+
+    <label>반복 주기
+      <select id="import-recurrence" onchange="updateDayRow()">
+        <option value="">없음 (일회성)</option>
+        <option value="daily">매일</option>
+        <option value="weekly">매주</option>
+        <option value="biweekly">격주 (2주)</option>
+        <option value="every4weeks">4주마다</option>
+        <option value="monthly">매달</option>
+        <option value="quarterly">분기 (3개월)</option>
+        <option value="semiannual">반기 (6개월)</option>
+        <option value="annual">매년</option>
+      </select>
+    </label>
+
+    <div id="import-day-row" style="display:none">
+      <label>{{ t('form.day_mon') }}
+        <select id="import-day">
+          <option value="0">{{ t('form.day_mon') }}</option>
+          <option value="1">{{ t('form.day_tue') }}</option>
+          <option value="2">{{ t('form.day_wed') }}</option>
+          <option value="3">{{ t('form.day_thu') }}</option>
+          <option value="4">{{ t('form.day_fri') }}</option>
+          <option value="5">{{ t('form.day_sat') }}</option>
+          <option value="6">{{ t('form.day_sun') }}</option>
+        </select>
+      </label>
+    </div>
+
+    <label>{{ t('form.assignee') }}
+      <select id="import-assignee">
+        <option value="">{{ t('form.unassigned') }}</option>
+      </select>
+    </label>
+
+    <label>{{ t('form.trigger') }}
+      <select id="import-trigger">
+        <option value="">{{ t('form.trigger_none') }}</option>
+        <option value="on_arrival">{{ t('form.trigger_arrival') }}</option>
+        <option value="on_departure">{{ t('form.trigger_departure') }}</option>
+      </select>
+    </label>
+
+    <footer>
+      <button class="secondary" onclick="document.getElementById('import-modal').close()">{{ t('common.cancel') }}</button>
+      <button id="import-confirm-btn" onclick="confirmImport()">{{ t('marketplace.import') }}</button>
+    </footer>
+  </article>
+</dialog>
+
+<!-- ── 공유 모달 ── -->
+<dialog id="submit-modal">
+  <article>
+    <header>
+      <button rel="prev" onclick="document.getElementById('submit-modal').close()"></button>
+      <h3>{{ t('marketplace.share') }}</h3>
+    </header>
+    <label>{{ t('form.name') }}<input type="text" id="sub-name" required maxlength="100"></label>
+    <div class="modal-row">
+      <label>{{ t('form.category') }}<input type="text" id="sub-cat" value="기타"></label>
+      <label>{{ t('form.duration') }}<input type="number" id="sub-min" value="15" min="1" max="480"></label>
+    </div>
+    <div class="modal-row">
+      <label>가족규모
+        <select id="sub-size">
+          <option value="전체">전체</option>
+          <option value="1인">1인</option>
+          <option value="2인">2인</option>
+          <option value="3인_영유아">3인 — 영유아(0~5세)</option>
+          <option value="3인_초등">3인 — 초등(6~12세)</option>
+          <option value="3인_중고등">3인 — 중고등(13~18세)</option>
+          <option value="4인_영유아">4인 — 영유아(0~5세)</option>
+          <option value="4인_초등">4인 — 초등(6~12세)</option>
+          <option value="4인_중고등">4인 — 중고등(13~18세)</option>
+        </select>
+      </label>
+      <label>{{ t('form.intensity') }}
+        <select id="sub-intensity">
+          <option value="Light">{{ t('form.intensity_light') }}</option>
+          <option value="Normal" selected>{{ t('form.intensity_normal') }}</option>
+          <option value="Hard">{{ t('form.intensity_hard') }}</option>
+        </select>
+      </label>
+    </div>
+    <label>{{ t('form.desc') }}<textarea id="sub-desc" rows="2"></textarea></label>
+    <footer>
+      <button class="secondary" onclick="document.getElementById('submit-modal').close()">{{ t('common.cancel') }}</button>
+      <button onclick="submitTemplate()">{{ t('marketplace.share') }}</button>
+    </footer>
+  </article>
+</dialog>
+
+{% endblock %}
+{% block scripts %}
+<script>
+var currentFamilyId = null;
+var currentMembers = [];
+var currentSize = "전체";
+var pendingImportId = null;
+var cachedItems = [];
+
+var INT_LABEL = {Light:"가벼움", Normal:"보통", Hard:"힘듦"};
+var INT_MULTI = {Light:1.0, Normal:1.5, Hard:2.0};
+var REC_LABEL = {
+  "daily":"매일", "weekly":"매주", "biweekly":"격주(2주)",
+  "every4weeks":"4주마다", "monthly":"매달",
+  "quarterly":"분기(3개월)", "semiannual":"반기(6개월)", "annual":"매년"
+};
+var DAY_LABEL = ["월","화","수","목","금","토","일"];
+var TRIGGER_LABEL = {"on_arrival":"귀가 시 알림","on_departure":"외출 전 확인"};
+var ASSIGNEE_LABEL = {"adult_only":"부모만", "child_assist":"아이 보조", "child_independent":"아이 독립"};
+var ASSIGNEE_BADGE = {"adult_only":"badge-adult", "child_assist":"badge-assist", "child_independent":"badge-indep"};
+
+async function init() {
+  var families = await apiFetch("/api/families").catch(function(){return [];});
+  if (families.length) {
+    currentFamilyId = families[0].id;
+    var fdata = await apiFetch("/api/families/" + currentFamilyId).catch(function(){return null;});
+    if (fdata && fdata.members) currentMembers = fdata.members;
+  }
+  loadMarket();
+}
+
+function selectSize(btn) {
+  document.querySelectorAll(".size-tab").forEach(function(b){ b.classList.remove("active"); });
+  btn.classList.add("active");
+  currentSize = btn.dataset.size;
+  loadMarket();
+}
+
+async function loadMarket() {
+  document.getElementById("market-list").innerHTML = "<article aria-busy=\"true\">로딩 중...</article>";
+  var url = "/api/marketplace?family_size=" + encodeURIComponent(currentSize);
+  if (currentFamilyId) url += "&family_id=" + currentFamilyId;
+  cachedItems = await apiFetch(url).catch(function(){return [];});
+  renderMarket(cachedItems);
+}
+
+function calcPts(minutes, intensity) {
+  return Math.round(minutes / 5 * (INT_MULTI[intensity] || 1.0) * 10) / 10;
+}
+
+function recLabel(interval, day) {
+  if (!interval) return null;
+  var base = REC_LABEL[interval] || interval;
+  if ((interval === "weekly" || interval === "biweekly") && day !== null && day !== undefined) {
+    base += " " + DAY_LABEL[day] + "요일";
+  }
+  return base;
+}
+
+function ageLabel(age_min, age_max) {
+  if (age_min === null && age_max === null) return null;
+  if (age_min !== null && age_max !== null) return age_min + "~" + age_max + "세";
+  if (age_min !== null) return age_min + "세 이상";
+  return age_max + "세 이하";
+}
+
+function renderMarket(items) {
+  var c = document.getElementById("market-list");
+  if (!items || !items.length) {
+    c.innerHTML = "<p style=\"color:var(--pico-muted-color);padding:1em\">이 가족규모에 맞는 템플릿이 없습니다.</p>";
+    return;
+  }
+
+  // 가족규모 전용 항목 vs 전체 공통 항목 분리
+  var specificItems = items.filter(function(t) { return t.family_size !== "전체"; });
+  var universalItems = items.filter(function(t) { return t.family_size === "전체"; });
+  var renderList = (currentSize === "전체") ? items : specificItems;
+
+  var groups = {};
+  var catOrder = [];
+  renderList.forEach(function(t) {
+    if (!groups[t.category]) { groups[t.category] = []; catOrder.push(t.category); }
+    groups[t.category].push(t);
+  });
+  catOrder = catOrder.filter(function(v, i, a){ return a.indexOf(v) === i; });
+
+  var html = "";
+  if (specificItems.length === 0 && currentSize !== "전체") {
+    html += "<p style=\"color:var(--pico-muted-color);padding:0.5em 0\">이 가족규모 전용 템플릿이 없습니다. 아래 공통 항목을 참고하세요.</p>";
+  }
+  catOrder.forEach(function(cat) {
+    var list = groups[cat];
+    var allImported = list.length > 0 && list.every(function(t){ return t.is_imported; });
+    html += '<details class="cat-details">' +
+      '<summary class="cat-summary">' +
+        '<span>' + escHtml(cat) + (allImported ? ' <span style="color:#2e7d32;font-size:0.8em">✓ 전체 추가됨</span>' : '') + '</span>' +
+        '<span class="cat-count">' + list.length + '개</span>' +
+      '</summary>';
+
+    list.forEach(function(t) {
+      var pts = typeof t.points === 'number' ? t.points : calcPts(t.estimated_minutes, t.intensity);
+      var rec = recLabel(t.recurrence_interval, t.recurrence_day);
+      var age = ageLabel(t.age_min, t.age_max);
+      var hasDetail = t.description || rec || t.trigger_context || age || t.assignee_type;
+
+      html += '<div class="tmpl-row" onclick="toggleDetail(event,\'' + t.id + '\')">' +
+        '<div class="tmpl-main">' +
+          '<div class="tmpl-left">' +
+            '<span class="tmpl-name">' + escHtml(t.name) + '</span>' +
+            '<span class="badge badge-' + t.intensity.toLowerCase() + '">' + INT_LABEL[t.intensity] + '</span>' +
+            (t.trigger_context ? '<span class="badge badge-trigger">' + escHtml(TRIGGER_LABEL[t.trigger_context] || t.trigger_context) + '</span>' : '') +
+            (t.assignee_type ? '<span class="badge ' + (ASSIGNEE_BADGE[t.assignee_type] || '') + '">' + escHtml(ASSIGNEE_LABEL[t.assignee_type] || t.assignee_type) + '</span>' : '') +
+            (age ? '<span class="badge badge-age">' + escHtml(age) + '</span>' : '') +
+          '</div>' +
+          '<div class="tmpl-right">' +
+            '<span class="tmpl-min">' + t.estimated_minutes + '분</span>' +
+            '<span class="tmpl-pts">' + pts + 'pt</span>' +
+            (currentFamilyId
+              ? (t.is_imported
+                  ? '<button class="btn-imported" disabled onclick="event.stopPropagation()">추가됨 ✓</button>'
+                  : '<button class="btn-add outline" onclick="openImport(event,' + t.id + ')">+ 추가</button>'
+                )
+              : '') +
+          '</div>' +
+        '</div>';
+
+      if (hasDetail) {
+        html += '<div class="tmpl-detail" id="detail-' + t.id + '">' +
+          (t.description ? '<div class="detail-desc">' + escHtml(t.description) + '</div>' : '') +
+          '<div class="detail-meta">' +
+            (rec ? '<span>🔁 ' + escHtml(rec) + '</span>' : '') +
+            '<span>' + escHtml(t.category) + '</span>' +
+            '<span>임포트 ' + (t.import_count || 0) + '회</span>' +
+            (t.family_size && t.family_size !== "전체" ? '<span>👨‍👩‍👧 ' + escHtml(t.family_size) + '</span>' : '') +
+            (t.assignee_type ? '<span>👤 ' + escHtml(ASSIGNEE_LABEL[t.assignee_type] || t.assignee_type) + '</span>' : '') +
+            (age ? '<span>🎂 수행연령 ' + escHtml(age) + '</span>' : '') +
+          '</div>' +
+        '</div>';
+      }
+
+      html += '</div>';
+    });
+
+    html += '</details>';
+  });
+
+  // 공통 항목(전체) 별도 섹션 — 현재 탭이 "전체"가 아닐 때만 추가
+  if (currentSize !== "전체" && universalItems.length > 0) {
+    var uGroups = {};
+    var uOrder = [];
+    universalItems.forEach(function(t) {
+      if (!uGroups[t.category]) { uGroups[t.category] = []; uOrder.push(t.category); }
+      uGroups[t.category].push(t);
+    });
+    uOrder = uOrder.filter(function(v, i, a){ return a.indexOf(v) === i; });
+
+    html += '<details style="margin-top:1.5em;border:1px solid var(--pico-muted-border-color);border-radius:8px;padding:0 0.8em">' +
+      '<summary style="padding:0.7em 0;cursor:pointer;font-weight:600;color:var(--pico-muted-color)">📦 공통 항목 (' + universalItems.length + '개) — 모든 가족규모에 적용 가능</summary>';
+    uOrder.forEach(function(cat) {
+      var list = uGroups[cat];
+      var allImported = list.length > 0 && list.every(function(t){ return t.is_imported; });
+      html += '<details class="cat-details" style="margin-left:0.5em">' +
+        '<summary class="cat-summary">' +
+          '<span>' + escHtml(cat) + (allImported ? ' <span style="color:#2e7d32;font-size:0.8em">✓ 전체 추가됨</span>' : '') + '</span>' +
+          '<span class="cat-count">' + list.length + '개</span>' +
+        '</summary>';
+      list.forEach(function(t) { html += renderTmplRow(t); });
+      html += '</details>';
+    });
+    html += '</details>';
+  }
+
+  c.innerHTML = html;
+}
+
+
+function renderTmplRow(t) {
+  var pts = typeof t.points === 'number' ? t.points : calcPts(t.estimated_minutes, t.intensity);
+  var rec = recLabel(t.recurrence_interval, t.recurrence_day);
+  var age = ageLabel(t.age_min, t.age_max);
+  var hasDetail = t.description || rec || t.trigger_context || age || t.assignee_type;
+  var row = '<div class="tmpl-row" onclick="toggleDetail(event,\'' + t.id + '\')">' +
+    '<div class="tmpl-main">' +
+      '<div class="tmpl-left">' +
+        '<span class="tmpl-name">' + escHtml(t.name) + '</span>' +
+        '<span class="badge badge-' + t.intensity.toLowerCase() + '">' + INT_LABEL[t.intensity] + '</span>' +
+        (t.trigger_context ? '<span class="badge badge-trigger">' + escHtml(TRIGGER_LABEL[t.trigger_context] || t.trigger_context) + '</span>' : '') +
+        (t.assignee_type ? '<span class="badge ' + (ASSIGNEE_BADGE[t.assignee_type] || '') + '">' + escHtml(ASSIGNEE_LABEL[t.assignee_type] || t.assignee_type) + '</span>' : '') +
+        (age ? '<span class="badge badge-age">' + escHtml(age) + '</span>' : '') +
+      '</div>' +
+      '<div class="tmpl-right">' +
+        '<span class="tmpl-min">' + t.estimated_minutes + '분</span>' +
+        '<span class="tmpl-pts">' + pts + 'pt</span>' +
+        (currentFamilyId
+          ? (t.is_imported
+              ? '<button class="btn-imported" disabled onclick="event.stopPropagation()">추가됨 ✓</button>'
+              : '<button class="btn-add outline" onclick="openImport(event,' + t.id + ')">+ 추가</button>'
+            )
+          : '') +
+      '</div>' +
+    '</div>';
+  if (hasDetail) {
+    row += '<div class="tmpl-detail" id="detail-' + t.id + '">' +
+      (t.description ? '<div class="detail-desc">' + escHtml(t.description) + '</div>' : '') +
+      '<div class="detail-meta">' +
+        (rec ? '<span>🔁 ' + escHtml(rec) + '</span>' : '') +
+        '<span>' + escHtml(t.category) + '</span>' +
+        '<span>임포트 ' + (t.import_count || 0) + '회</span>' +
+        (t.family_size && t.family_size !== "전체" ? '<span>👨\u200d👩\u200d👧 ' + escHtml(t.family_size) + '</span>' : '') +
+        (t.assignee_type ? '<span>👤 ' + escHtml(ASSIGNEE_LABEL[t.assignee_type] || t.assignee_type) + '</span>' : '') +
+        (age ? '<span>🎂 수행연령 ' + escHtml(age) + '</span>' : '') +
+      '</div>' +
+    '</div>';
+  }
+  row += '</div>';
+  return row;
+}
+
+function toggleDetail(e, id) {
+  if (e.target.closest('button')) return;
+  var panel = document.getElementById("detail-" + id);
+  if (!panel) return;
+  panel.classList.toggle("open");
+}
+
+function openImport(e, id) {
+  e.stopPropagation();
+  if (!currentFamilyId) { flash("먼저 가족에 합류하세요", "error"); return; }
+
+  var t = null;
+  for (var i = 0; i < cachedItems.length; i++) {
+    if (cachedItems[i].id === id) { t = cachedItems[i]; break; }
+  }
+
+  pendingImportId = id;
+  document.getElementById("import-modal-title").textContent = t ? t.name : "템플릿 추가";
+  document.getElementById("import-modal-desc").textContent = (t && t.description) ? t.description : "";
+
+  // 연령 정보 표시
+  var ageEl = document.getElementById("import-modal-age");
+  var age = t ? ageLabel(t.age_min, t.age_max) : null;
+  if (age) {
+    ageEl.textContent = "🎂 수행 권장 연령: " + age;
+    ageEl.style.display = "";
+  } else {
+    ageEl.style.display = "none";
+  }
+
+  var recSel = document.getElementById("import-recurrence");
+  recSel.value = (t && t.recurrence_interval) ? t.recurrence_interval : "";
+  updateDayRow();
+  if (t && t.recurrence_day !== null && t.recurrence_day !== undefined) {
+    document.getElementById("import-day").value = t.recurrence_day;
+  }
+
+  var asSel = document.getElementById("import-assignee");
+  asSel.innerHTML = '<option value="">담당자 없음 (모두)</option>';
+  currentMembers.forEach(function(m) {
+    var ageTxt = (m.age !== null && m.age !== undefined) ? ' (' + m.age + '세)' : '';
+    asSel.innerHTML += '<option value="' + m.id + '">' + escHtml(m.name + ageTxt) + '</option>';
+  });
+
+  document.getElementById("import-trigger").value = (t && t.trigger_context) ? t.trigger_context : "";
+
+  document.getElementById("import-modal").showModal();
+}
+
+function updateDayRow() {
+  var v = document.getElementById("import-recurrence").value;
+  document.getElementById("import-day-row").style.display = (v === "weekly" || v === "biweekly") ? "" : "none";
+}
+
+async function confirmImport() {
+  if (!currentFamilyId || !pendingImportId) return;
+  var recurrence = document.getElementById("import-recurrence").value;
+  var day = document.getElementById("import-day").value;
+  var assignee = document.getElementById("import-assignee").value;
+  var trigger = document.getElementById("import-trigger").value;
+
+  var params = "family_id=" + currentFamilyId;
+  if (recurrence) params += "&recurrence_interval=" + encodeURIComponent(recurrence);
+  if (recurrence === "weekly" || recurrence === "biweekly") params += "&recurrence_day=" + day;
+  if (assignee) params += "&assigned_to=" + assignee;
+  if (trigger) params += "&trigger_context=" + encodeURIComponent(trigger);
+
+  var btn = document.getElementById("import-confirm-btn");
+  btn.setAttribute("aria-busy","true");
+  try {
+    await apiFetch("/api/marketplace/" + pendingImportId + "/import?" + params, {method:"POST", body:"{}"});
+    document.getElementById("import-modal").close();
+    flash("템플릿이 추가되었습니다!");
+    loadMarket();
+  } catch(e) {
+    flash(e.message, "error");
+  } finally {
+    btn.removeAttribute("aria-busy");
+  }
+}
+
+async function submitTemplate() {
+  if (!currentFamilyId) { flash("가족이 필요합니다", "error"); return; }
+  var body = {
+    name: document.getElementById("sub-name").value,
+    category: document.getElementById("sub-cat").value,
+    estimated_minutes: parseInt(document.getElementById("sub-min").value),
+    intensity: document.getElementById("sub-intensity").value,
+    family_size: document.getElementById("sub-size").value,
+    description: document.getElementById("sub-desc").value || null,
+  };
+  try {
+    await apiFetch("/api/marketplace?family_id=" + currentFamilyId, {method:"POST", body:JSON.stringify(body)});
+    document.getElementById("submit-modal").close();
+    flash("마켓에 공유되었습니다!");
+    loadMarket();
+  } catch(e) { flash(e.message, "error"); }
+}
+
+function escHtml(s) {
+  if (!s) return "";
+  return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+}
+
+init();
+</script>
+{% endblock %}

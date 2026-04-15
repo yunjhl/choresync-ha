@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% block title %}로그인 — ChoreSync{% endblock %}
+
+{% block content %}
+<article>
+  <header><h2 id="form-title">로그인</h2></header>
+
+  <form id="auth-form" onsubmit="handleAuth(event)">
+    <div id="name-field" class="hidden">
+      <label for="name">이름</label>
+      <input type="text" id="name" name="name" placeholder="이름">
+    </div>
+
+    <label for="email">이메일</label>
+    <input type="email" id="email" name="email" placeholder="이메일" required>
+
+    <label for="password">비밀번호</label>
+    <input type="password" id="password" name="password" placeholder="비밀번호 (6자 이상)" required minlength="6">
+
+    <button type="submit" id="submit-btn">로그인</button>
+  </form>
+
+  <p style="text-align:center">
+    <a href="#" id="toggle-mode" onclick="toggleMode(event)">계정이 없으신가요? 회원가입</a>
+  </p>
+</article>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  let isRegister = false;
+
+  function toggleMode(e) {
+    e.preventDefault();
+    isRegister = !isRegister;
+    document.getElementById('form-title').textContent = isRegister ? '회원가입' : '로그인';
+    document.getElementById('name-field').classList.toggle('hidden', !isRegister);
+    document.getElementById('submit-btn').textContent = isRegister ? '회원가입' : '로그인';
+    document.getElementById('toggle-mode').textContent = isRegister
+      ? '이미 계정이 있으신가요? 로그인'
+      : '계정이 없으신가요? 회원가입';
+  }
+
+  async function handleAuth(e) {
+    e.preventDefault();
+    const email = document.getElementById('email').value;
+    const password = document.getElementById('password').value;
+    const name = document.getElementById('name').value;
+
+    const url = isRegister ? '/api/auth/register' : '/api/auth/login';
+    const body = isRegister ? { email, password, name } : { email, password };
+
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        flash(data.detail || '오류가 발생했습니다', 'error');
+        return;
+      }
+
+      setToken(data.access_token);
+      location.href = '/';
+    } catch (err) {
+      flash('서버에 연결할 수 없습니다', 'error');
+    }
+  }
+
+  // 이미 로그인 상태면 토큰 유효성 확인 후 대시보드로
+  (async function() {
+    const token = getToken();
+    if (!token) return;
+    try {
+      const res = await fetch('/api/families', {
+        headers: { 'Authorization': 'Bearer ' + token }
+      });
+      if (res.ok) {
+        location.href = '/';
+      } else {
+        // 만료된 토큰 제거
+        localStorage.removeItem('token');
+      }
+    } catch(e) {
+      localStorage.removeItem('token');
+    }
+  })();
+</script>
+{% endblock %}
+

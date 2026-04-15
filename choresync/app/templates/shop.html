@@ -1,0 +1,204 @@
+{% extends "base.html" %}
+{% block title %}{{ t('shop.title') }} — ChoreSync{% endblock %}
+{% block head %}
+<link rel="stylesheet" href="/static/css/calendar.css">
+{% endblock %}
+{% block content %}
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.5em;flex-wrap:wrap;gap:0.5em">
+  <h2 style="margin:0">🛒 {{ t('shop.title') }}</h2>
+  <div style="background:var(--pico-card-background-color);border:1px solid var(--pico-primary);border-radius:20px;padding:0.4em 1.2em">
+    ⭐ <strong id="balance-display">-</strong> 포인트
+  </div>
+</div>
+
+<!-- 탭 -->
+<div style="display:flex;gap:0.5em;margin-bottom:1.5em;flex-wrap:wrap">
+  <button id="tab-shop" onclick="showTab('shop')" class="outline">{{ t('shop.items_list') }}</button>
+  <button id="tab-history" onclick="showTab('history')" class="outline secondary">{{ t('shop.purchase_history') }}</button>
+  <button id="tab-admin" onclick="showTab('admin')" class="outline secondary" style="display:none">{{ t('shop.admin') }}</button>
+</div>
+
+<!-- 상품 목록 -->
+<div id="section-shop">
+  <div class="shop-grid" id="shop-grid">
+    <p style="color:var(--pico-muted-color)">로딩 중...</p>
+  </div>
+</div>
+
+<!-- 구매 내역 -->
+<div id="section-history" style="display:none">
+  <div id="history-list"><p style="color:var(--pico-muted-color)">로딩 중...</p></div>
+</div>
+
+<!-- 관리자: 상품 추가 + 처리 대기 -->
+<div id="section-admin" style="display:none">
+  <h4>{{ t('shop.add_item') }}</h4>
+  <form id="add-item-form" onsubmit="addItem(event)">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5em">
+      <label>{{ t('shop.item_name') }} <input id="item-name" required placeholder="예: 게임 1시간"></label>
+      <label>{{ t('shop.price') }} <input id="item-cost" type="number" min="1" required placeholder="100"></label>
+      <label>아이콘 <input id="item-icon" value="🎁" placeholder="🎁"></label>
+      <label>{{ t('shop.stock') }} <input id="item-stock" type="number" value="-1" placeholder="-1=무제한"></label>
+    </div>
+    <label>설명 <input id="item-desc" placeholder="(선택)"></label>
+    <button type="submit">상품 추가</button>
+  </form>
+  <hr>
+  <h4>{{ t('shop.pending_approval') }}</h4>
+  <div id="admin-queue"><p style="color:var(--pico-muted-color)">없음</p></div>
+</div>
+
+<!-- 구매 확인 모달 -->
+<dialog id="buy-modal">
+  <article style="max-width:360px">
+    <header><h3 style="margin:0">{{ t('shop.buy_confirm') }}</h3></header>
+    <div id="buy-modal-body"></div>
+    <footer>
+      <button onclick="document.getElementById('buy-modal').close()" class="secondary outline">{{ t('common.cancel') }}</button>
+      <button id="buy-confirm-btn">{{ t('shop.buy') }}</button>
+    </footer>
+  </article>
+</dialog>
+
+<script>
+let gFamilyId=null, gUserId=null, gIsAdmin=false, gBalance=0;
+function getToken(){return localStorage.getItem("token");}
+
+function showTab(tab) {
+  ["shop","history","admin"].forEach(t=>{
+    document.getElementById("section-"+t).style.display=t===tab?"":"none";
+    document.getElementById("tab-"+t).className=t===tab?"outline":"outline secondary";
+  });
+  if (tab==="history") loadHistory();
+  if (tab==="admin") loadAdminQueue();
+}
+
+async function initShop() {
+  const token=getToken();
+  if(!token){location.href="/login";return;}
+  const res=await fetch("/api/families",{headers:{"Authorization":"Bearer "+token}});
+  const families=await res.json();
+  if(!families.length){document.getElementById("shop-grid").innerHTML="<p>가족을 먼저 만들어 주세요</p>";return;}
+  gFamilyId=families[0].id;
+  try{const p=JSON.parse(atob(token.split(".")[1]));gUserId=p.sub;}catch(e){}
+
+  // 구성원 역할 확인
+  const memRes=await fetch(`/api/families/${gFamilyId}/members`,{headers:{"Authorization":"Bearer "+token}});
+  const members=await memRes.json();
+  const me=members.find(m=>m.user_id==gUserId)||members[0];
+  if(me&&me.role==="Admin"){gIsAdmin=true;document.getElementById("tab-admin").style.display="";}
+
+  loadShopItems();
+}
+
+async function loadShopItems() {
+  const token=getToken();
+  const res=await fetch(`/api/shop/items?family_id=${gFamilyId}`,{headers:{"Authorization":"Bearer "+token}});
+  const data=await res.json();
+  gBalance=data.balance||0;
+  document.getElementById("balance-display").textContent=Math.floor(gBalance);
+
+  const grid=document.getElementById("shop-grid");
+  if(!data.items||!data.items.length){
+    grid.innerHTML="<p style=\"color:var(--pico-muted-color)\">상품이 없습니다. 관리자가 상품을 추가해 주세요.</p>";
+    return;
+  }
+  grid.innerHTML=data.items.map(item=>`
+    <div class="shop-item-card">
+      <div class="shop-item-icon">${item.icon}</div>
+      <strong>${item.name}</strong>
+      ${item.description?`<p style="font-size:0.82em;color:var(--pico-muted-color);margin:0">${item.description}</p>`:""}
+      <div class="shop-item-cost">⭐ ${item.point_cost}pt</div>
+      <div class="shop-item-stock">${item.stock===-1?"무제한":item.stock+"개 남음"}</div>
+      <button ${item.can_afford?"":'disabled class="secondary"'} onclick="openBuyModal(${item.id},'${item.name}',${item.point_cost})">
+        ${item.can_afford?"구매":"포인트 부족"}
+      </button>
+    </div>`).join("");
+}
+
+function openBuyModal(itemId, itemName, cost) {
+  document.getElementById("buy-modal-body").innerHTML=`
+    <p><strong>${itemName}</strong>을 구매하시겠습니까?</p>
+    <p>소요: <strong>⭐ ${cost}pt</strong> / 잔액: ${Math.floor(gBalance)}pt → ${Math.floor(gBalance-cost)}pt</p>
+    <label>메모 (선택) <input id="buy-note" placeholder="관리자에게 전달할 메모"></label>`;
+  document.getElementById("buy-confirm-btn").onclick=()=>doPurchase(itemId);
+  document.getElementById("buy-modal").showModal();
+}
+
+async function doPurchase(itemId) {
+  const token=getToken();
+  const note=document.getElementById("buy-note").value||null;
+  const res=await fetch(`/api/shop/purchase?family_id=${gFamilyId}`,{
+    method:"POST",headers:{"Authorization":"Bearer "+token,"Content-Type":"application/json"},
+    body:JSON.stringify({reward_item_id:itemId,note:note})
+  });
+  document.getElementById("buy-modal").close();
+  if(res.ok){flash("구매 신청이 완료되었습니다! 관리자 승인 후 이행됩니다.","success");loadShopItems();}
+  else{const e=await res.json();flash("구매 실패: "+(e.detail||"오류"),"error");}
+}
+
+async function loadHistory() {
+  const token=getToken();
+  const res=await fetch(`/api/shop/purchases?family_id=${gFamilyId}`,{headers:{"Authorization":"Bearer "+token}});
+  const list=await res.json();
+  const STATUS={pending:"⏳ 대기",approved:"✅ 승인",rejected:"❌ 거절",fulfilled:"🎁 이행"};
+  const STATUS_COLOR={pending:"#f59e0b",approved:"#10b981",rejected:"#ef4444",fulfilled:"#6366f1"};
+  const el=document.getElementById("history-list");
+  if(!list.length){el.innerHTML="<p style=\"color:var(--pico-muted-color)\">구매 내역이 없습니다</p>";return;}
+  el.innerHTML=`<table><thead><tr><th>상품</th><th>포인트</th><th>상태</th><th>날짜</th></tr></thead><tbody>`+
+    list.map(p=>`<tr>
+      <td>${p.item_icon} ${p.item_name}</td>
+      <td>⭐ ${p.points_spent}</td>
+      <td><span style="color:${STATUS_COLOR[p.status]}">${STATUS[p.status]||p.status}</span></td>
+      <td style="font-size:0.8em">${p.purchased_at.slice(0,10)}</td>
+    </tr>`).join("")+`</tbody></table>`;
+}
+
+async function loadAdminQueue() {
+  const token=getToken();
+  const res=await fetch(`/api/shop/purchases?family_id=${gFamilyId}&status=pending`,{headers:{"Authorization":"Bearer "+token}});
+  const list=await res.json();
+  const el=document.getElementById("admin-queue");
+  if(!list.length){el.innerHTML="<p style=\"color:var(--pico-muted-color)\">처리 대기 항목 없음</p>";return;}
+  el.innerHTML=list.map(p=>`
+    <div style="border:1px solid var(--pico-muted-border-color);border-radius:8px;padding:0.8em;margin-bottom:0.8em">
+      <strong>${p.user_name}</strong> → ${p.item_icon} ${p.item_name} (⭐${p.points_spent})
+      ${p.note?`<p style="font-size:0.82em;color:var(--pico-muted-color)">"${p.note}"</p>`:""}
+      <div style="display:flex;gap:0.5em;margin-top:0.5em">
+        <button onclick="processPurchase(${p.id},'fulfill')" style="font-size:0.85em;padding:0.3em 0.8em">이행</button>
+        <button onclick="processPurchase(${p.id},'reject')" class="secondary outline" style="font-size:0.85em;padding:0.3em 0.8em">거절</button>
+      </div>
+    </div>`).join("");
+}
+
+async function processPurchase(id, action) {
+  const token=getToken();
+  const res=await fetch(`/api/shop/purchases/${id}/${action}?family_id=${gFamilyId}`,{
+    method:"PUT",headers:{"Authorization":"Bearer "+token,"Content-Type":"application/json"},
+    body:JSON.stringify({})
+  });
+  if(res.ok){flash(action==="fulfill"?"이행 완료":"거절 완료","success");loadAdminQueue();}
+  else{const e=await res.json();flash("처리 실패: "+(e.detail||"오류"),"error");}
+}
+
+async function addItem(e) {
+  e.preventDefault();
+  const token=getToken();
+  const body={
+    name:document.getElementById("item-name").value,
+    point_cost:parseInt(document.getElementById("item-cost").value),
+    icon:document.getElementById("item-icon").value||"🎁",
+    stock:parseInt(document.getElementById("item-stock").value)||-1,
+    description:document.getElementById("item-desc").value||null,
+  };
+  const res=await fetch(`/api/shop/items?family_id=${gFamilyId}`,{
+    method:"POST",headers:{"Authorization":"Bearer "+token,"Content-Type":"application/json"},
+    body:JSON.stringify(body)
+  });
+  if(res.ok){flash("상품이 추가되었습니다","success");document.getElementById("add-item-form").reset();loadShopItems();}
+  else{const e=await res.json();flash("추가 실패: "+(e.detail||"오류"),"error");}
+}
+
+initShop();
+</script>
+{% endblock %}
